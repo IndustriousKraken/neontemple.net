@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en-us">
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Join | Neon Temple</title>
+  <meta name="description" content="A cybersecurity guild in Tampa Bay. Not a cult!">
+  <link rel="stylesheet" href="/css/style.css">
+  <script>
+    window.COTERIE_API_URL = 'https:\/\/coterie.stage.grc.red';
+    window.COTERIE_PORTAL_URL = 'https:\/\/coterie.stage.grc.red\/login';
+  </script>
+</head>
+<body>
+  <div class="container">
+    <header class="site-header">
+      <div class="header-content">
+        <a href="http://localhost:1313/" class="site-title">
+          <span class="prompt">&gt;</span> Neon Temple
+        </a>
+        <nav class="main-nav">
+          
+            <a href="/" class="">Home</a>
+          
+            <a href="/calendar/" class="">Calendar</a>
+          
+            <a href="/announcements/" class="">Announcements</a>
+          
+            <a href="/about/" class="">About</a>
+          
+            <a href="/join/" class="">Join</a>
+          
+            <a href="https://www.ransomwear.store/collections/vault/Vault&#43;vault" class="" target="_blank" rel="noopener">Swag</a>
+          
+            <a href="https://coterie.stage.grc.red/login" class="">Login</a>
+          
+        </nav>
+      </div>
+    </header>
+
+    <div id="announcement-banner" class="announcement-banner hidden"></div>
+
+    <main class="site-main">
+      
+<div data-page="join">
+
+<h1 class="page-title">Join</h1>
+
+<div class="page-content">
+  <p>Membership gets you access to weekly meetings, our private Discord, training sessions, and the network of security professionals who make up the guild.</p>
+<p>We&rsquo;re not for everyone. If you&rsquo;re looking for a casual meetup where people talk about security in the abstract, there are other options. If you want to be in a room with practitioners who are actively breaking and defending systems, and you&rsquo;re ready to contribute—demos, talks, questions, answers—we&rsquo;d like to meet you.</p>
+<p>Membership includes:</p>
+<ul>
+<li>Weekly in-person meetings (remote option available)</li>
+<li>Private Discord access</li>
+<li>Member rates on training and events</li>
+<li>Access to the job network</li>
+<li>Voting rights on guild decisions</li>
+</ul>
+
+</div>
+
+<form id="signup-form" class="signup-form" style="max-width: 480px;">
+  <div class="form-group">
+    <label class="form-label" for="email">Email</label>
+    <input type="email" id="email" name="email" class="form-input" required autocomplete="email">
+  </div>
+
+  <div class="form-group">
+    <label class="form-label" for="username">Username</label>
+    <input type="text" id="username" name="username" class="form-input" required autocomplete="username">
+  </div>
+
+  <div class="form-group">
+    <label class="form-label" for="full_name">Full Name</label>
+    <input type="text" id="full_name" name="full_name" class="form-input" required autocomplete="name">
+  </div>
+
+  <div class="form-group">
+    <label class="form-label" for="password">Password</label>
+    <input type="password" id="password" name="password" class="form-input" required autocomplete="new-password" minlength="8">
+  </div>
+
+  <div class="form-group">
+    <label class="form-label" for="membership_type">Membership Type</label>
+    <select id="membership_type" name="membership_type" class="form-input">
+      <option value="standard">Standard</option>
+    </select>
+  </div>
+
+  <button type="submit" class="btn">Create Account</button>
+</form>
+
+<p style="margin-top: var(--space-lg); color: var(--text-secondary);">
+  Already a member? <a href="https://coterie.stage.grc.red/login">Login to the portal</a>
+</p>
+
+</div>
+<script>document.body.dataset.page = 'join';</script>
+
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-content">
+        
+        <div class="footer-links">
+          <a href="mailto:info@neontemple.net">Email</a>
+          
+          
+          
+          
+        </div>
+        <div class="footer-copy">
+          <span class="prompt">&gt;</span> 2026 Neon Temple
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/calendar.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="/js/main.js"></script>
+</body>
+</html>

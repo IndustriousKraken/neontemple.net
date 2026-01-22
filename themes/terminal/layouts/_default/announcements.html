@@ -1,0 +1,22 @@
+{{ define "main" }}
+<div data-page="announcements">
+
+<h1 class="page-title">{{ .Title }}</h1>
+
+<div class="page-content">
+  {{ .Content }}
+</div>
+
+<div class="announcements-actions" style="margin-bottom: var(--space-lg);">
+  <a href="{{ .Site.Params.coterieAPI }}/public/feed/rss" class="btn btn-outline" target="_blank" rel="noopener">
+    Subscribe (RSS)
+  </a>
+</div>
+
+<div id="all-announcements" class="card-list">
+  <p class="loading">Loading announcements</p>
+</div>
+
+</div>
+<script>document.body.dataset.page = 'announcements';</script>
+{{ end }}

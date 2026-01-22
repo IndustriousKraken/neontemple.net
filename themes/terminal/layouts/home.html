@@ -1,0 +1,32 @@
+{{ define "main" }}
+<div data-page="home">
+
+<section class="hero">
+  <h1 class="hero-title">{{ .Site.Title }}</h1>
+  <p class="hero-tagline">{{ .Site.Params.description }}</p>
+</section>
+
+{{ .Content }}
+
+<section class="section">
+  <div class="section-header">
+    <h2 class="section-title">Upcoming Events</h2>
+    <a href="/calendar/" class="section-link">View all &rarr;</a>
+  </div>
+  <div id="home-events" class="card-list">
+    <p class="loading">Loading events</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-header">
+    <h2 class="section-title">Announcements</h2>
+  </div>
+  <div id="home-announcements" class="card-list">
+    <p class="loading">Loading announcements</p>
+  </div>
+</section>
+
+</div>
+<script>document.body.dataset.page = 'home';</script>
+{{ end }}

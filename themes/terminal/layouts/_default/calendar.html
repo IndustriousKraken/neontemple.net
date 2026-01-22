@@ -1,0 +1,164 @@
+{{ define "main" }}
+<div x-data="calendar()" x-init="init()">
+
+<h1 class="page-title">{{ .Title }}</h1>
+
+<div class="page-content">
+  {{ .Content }}
+</div>
+
+<!-- Controls -->
+<div class="calendar-controls">
+  <div class="calendar-search">
+    <input
+      type="text"
+      x-model="search"
+      @focus="searchFocused = true"
+      @blur="setTimeout(() => searchFocused = false, 150)"
+      placeholder="Search events..."
+      class="form-input"
+    >
+    <!-- Search dropdown for grid view -->
+    <div x-show="showSearchDropdown" x-cloak class="search-dropdown">
+      <template x-for="event in searchResults" :key="event.id">
+        <div class="search-result" @mousedown="goToEvent(event)">
+          <div class="search-result-title" x-text="event.title"></div>
+          <div class="search-result-meta" x-text="formatEventDate(event.start_time) + ' at ' + formatEventTime(event.start_time)"></div>
+        </div>
+      </template>
+      <div x-show="searchFilteredEvents.length > 6" class="search-result-more">
+        <span x-text="'+ ' + (searchFilteredEvents.length - 6) + ' more results'"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="calendar-view-toggle">
+    <button
+      @click="setView('grid')"
+      :class="{ 'active': view === 'grid' }"
+      class="btn btn-outline btn-sm"
+    >Grid</button>
+    <button
+      @click="setView('list')"
+      :class="{ 'active': view === 'list' }"
+      class="btn btn-outline btn-sm"
+    >List</button>
+  </div>
+
+  <div class="calendar-actions">
+    <a href="{{ .Site.Params.coterieAPI }}/public/feed/calendar" class="btn btn-outline btn-sm" target="_blank" rel="noopener">
+      Subscribe (iCal)
+    </a>
+  </div>
+</div>
+
+<!-- Loading state -->
+<div x-show="loading" class="loading">Loading calendar</div>
+
+<!-- Error state -->
+<div x-show="error" class="error" x-text="error"></div>
+
+<!-- Grid View -->
+<div x-show="!loading && !error && view === 'grid'" x-cloak>
+  <!-- Month navigation -->
+  <div class="calendar-nav">
+    <button @click="prevMonth()" class="btn btn-outline btn-sm">&larr; Prev</button>
+    <span class="calendar-month-label" x-text="monthLabel"></span>
+    <button @click="nextMonth()" class="btn btn-outline btn-sm">Next &rarr;</button>
+    <button @click="goToToday()" class="btn btn-outline btn-sm">Today</button>
+  </div>
+
+  <!-- Calendar grid -->
+  <div class="calendar-grid-container">
+    <!-- Day headers -->
+    <div class="calendar-header">
+      <template x-for="day in ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']">
+        <div class="calendar-header-cell" x-text="day"></div>
+      </template>
+    </div>
+
+    <!-- Day cells -->
+    <div class="calendar-body">
+      <template x-for="day in calendarDays" :key="day.dateStr || Math.random()">
+        <div
+          class="calendar-cell"
+          :class="{
+            'calendar-cell-empty': !day.number,
+            'calendar-cell-today': day.isToday,
+            'calendar-cell-selected': day.isSelected,
+            'calendar-cell-has-events': day.events.length > 0
+          }"
+          @click="selectDay(day)"
+        >
+          <span class="calendar-day-number" x-text="day.number"></span>
+          <!-- Text summaries for larger screens -->
+          <div class="calendar-day-events" x-show="day.events.length > 0">
+            <template x-for="(event, i) in day.events.slice(0, 2)" :key="event.id">
+              <div class="calendar-event-title" x-text="event.title"></div>
+            </template>
+            <div x-show="day.events.length > 2" class="calendar-event-more" x-text="'+' + (day.events.length - 2) + ' more'"></div>
+          </div>
+          <!-- Dots for smaller screens -->
+          <div class="calendar-day-dots" x-show="day.events.length > 0">
+            <template x-for="(event, i) in day.events.slice(0, 3)" :key="event.id">
+              <span class="calendar-dot"></span>
+            </template>
+            <span x-show="day.events.length > 3" class="calendar-more">+</span>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <!-- Selected day events -->
+  <div x-show="selectedDate" class="calendar-selected-day" x-cloak>
+    <div class="calendar-selected-header">
+      <h3 x-text="selectedDate ? formatFullDate(selectedDate) : ''"></h3>
+      <button @click="clearSelection()" class="btn btn-outline btn-sm">Close</button>
+    </div>
+
+    <div x-show="selectedDateEvents.length === 0" class="empty">
+      No events on this day
+    </div>
+
+    <div class="card-list">
+      <template x-for="event in selectedDateEvents" :key="event.id">
+        <div class="card">
+          <h4 class="card-title" x-text="event.title"></h4>
+          <div class="card-meta">
+            <span class="event-date" x-text="formatEventTime(event.start_time)"></span>
+            <span x-show="event.location" class="event-location" x-text="event.location"></span>
+          </div>
+          <p x-show="event.description" class="card-description" x-text="event.description"></p>
+        </div>
+      </template>
+    </div>
+  </div>
+</div>
+
+<!-- List View -->
+<div x-show="!loading && !error && view === 'list'" x-cloak>
+  <div x-show="filteredEvents.length === 0" class="empty">
+    <span x-show="search">No events matching "<span x-text="search"></span>"</span>
+    <span x-show="!search">No upcoming events</span>
+  </div>
+
+  <div class="card-list">
+    <template x-for="event in filteredEvents" :key="event.id">
+      <div class="card">
+        <h4 class="card-title" x-text="event.title"></h4>
+        <div class="card-meta">
+          <span class="event-date" x-text="formatEventDate(event.start_time) + ' at ' + formatEventTime(event.start_time)"></span>
+          <span x-show="event.location" class="event-location" x-text="event.location"></span>
+        </div>
+        <p x-show="event.description" class="card-description" x-text="event.description"></p>
+        <div x-show="event.event_type" class="card-badges">
+          <span class="badge" x-text="event.event_type"></span>
+        </div>
+      </div>
+    </template>
+  </div>
+</div>
+
+</div>
+{{ end }}

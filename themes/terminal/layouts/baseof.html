@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="{{ .Site.LanguageCode }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ if .IsHome }}{{ .Site.Title }}{{ else }}{{ .Title }} | {{ .Site.Title }}{{ end }}</title>
+  <meta name="description" content="{{ with .Description }}{{ . }}{{ else }}{{ .Site.Params.description }}{{ end }}">
+  <link rel="stylesheet" href="{{ "css/style.css" | relURL }}">
+  <script>
+    window.COTERIE_API_URL = '{{ .Site.Params.coterieAPI }}';
+    window.COTERIE_PORTAL_URL = '{{ .Site.Params.portalURL }}';
+  </script>
+</head>
+<body>
+  <div class="container">
+    <header class="site-header">
+      <div class="header-content">
+        <a href="{{ .Site.BaseURL }}" class="site-title">
+          <span class="prompt">&gt;</span> {{ .Site.Title }}
+        </a>
+        <nav class="main-nav">
+          {{ range .Site.Menus.main }}
+            <a href="{{ .URL }}" class="{{ if $.IsMenuCurrent "main" . }}active{{ end }}"{{ if .Params.external }} target="_blank" rel="noopener"{{ end }}>{{ .Name }}</a>
+          {{ end }}
+        </nav>
+      </div>
+    </header>
+
+    <div id="announcement-banner" class="announcement-banner hidden"></div>
+
+    <main class="site-main">
+      {{ block "main" . }}{{ end }}
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-content">
+        {{ with .Site.Params.address }}
+        <div class="footer-address">{{ . }}</div>
+        {{ end }}
+        <div class="footer-links">
+          {{ with .Site.Params.email }}<a href="mailto:{{ . }}">Email</a>{{ end }}
+          {{ with .Site.Params.facebook }}<a href="{{ . }}" rel="noopener">Facebook</a>{{ end }}
+          {{ with .Site.Params.twitter }}<a href="{{ . }}" rel="noopener">X</a>{{ end }}
+          {{ with .Site.Params.youtube }}<a href="{{ . }}" rel="noopener">YouTube</a>{{ end }}
+          {{ with .Site.Params.instagram }}<a href="{{ . }}" rel="noopener">Instagram</a>{{ end }}
+        </div>
+        <div class="footer-copy">
+          <span class="prompt">&gt;</span> {{ now.Year }} {{ .Site.Title }}
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <script src="{{ "js/api.js" | relURL }}"></script>
+  <script src="{{ "js/calendar.js" | relURL }}"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="{{ "js/main.js" | relURL }}"></script>
+</body>
+</html>

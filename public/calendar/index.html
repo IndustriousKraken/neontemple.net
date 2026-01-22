@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en-us">
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Calendar | Neon Temple</title>
+  <meta name="description" content="A cybersecurity guild in Tampa Bay. Not a cult!">
+  <link rel="stylesheet" href="/css/style.css">
+  <script>
+    window.COTERIE_API_URL = 'https:\/\/coterie.stage.grc.red';
+    window.COTERIE_PORTAL_URL = 'https:\/\/coterie.stage.grc.red\/login';
+  </script>
+</head>
+<body>
+  <div class="container">
+    <header class="site-header">
+      <div class="header-content">
+        <a href="http://localhost:1313/" class="site-title">
+          <span class="prompt">&gt;</span> Neon Temple
+        </a>
+        <nav class="main-nav">
+          
+            <a href="/" class="">Home</a>
+          
+            <a href="/calendar/" class="">Calendar</a>
+          
+            <a href="/announcements/" class="">Announcements</a>
+          
+            <a href="/about/" class="">About</a>
+          
+            <a href="/join/" class="">Join</a>
+          
+            <a href="https://www.ransomwear.store/collections/vault/Vault&#43;vault" class="" target="_blank" rel="noopener">Swag</a>
+          
+            <a href="https://coterie.stage.grc.red/login" class="">Login</a>
+          
+        </nav>
+      </div>
+    </header>
+
+    <div id="announcement-banner" class="announcement-banner hidden"></div>
+
+    <main class="site-main">
+      
+<div x-data="calendar()" x-init="init()">
+
+<h1 class="page-title">Calendar</h1>
+
+<div class="page-content">
+  <p>All upcoming meetings, workshops, and events.</p>
+
+</div>
+
+
+<div class="calendar-controls">
+  <div class="calendar-search">
+    <input
+      type="text"
+      x-model="search"
+      @focus="searchFocused = true"
+      @blur="setTimeout(() => searchFocused = false, 150)"
+      placeholder="Search events..."
+      class="form-input"
+    >
+    
+    <div x-show="showSearchDropdown" x-cloak class="search-dropdown">
+      <template x-for="event in searchResults" :key="event.id">
+        <div class="search-result" @mousedown="goToEvent(event)">
+          <div class="search-result-title" x-text="event.title"></div>
+          <div class="search-result-meta" x-text="formatEventDate(event.start_time) + ' at ' + formatEventTime(event.start_time)"></div>
+        </div>
+      </template>
+      <div x-show="searchFilteredEvents.length > 6" class="search-result-more">
+        <span x-text="'+ ' + (searchFilteredEvents.length - 6) + ' more results'"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="calendar-view-toggle">
+    <button
+      @click="setView('grid')"
+      :class="{ 'active': view === 'grid' }"
+      class="btn btn-outline btn-sm"
+    >Grid</button>
+    <button
+      @click="setView('list')"
+      :class="{ 'active': view === 'list' }"
+      class="btn btn-outline btn-sm"
+    >List</button>
+  </div>
+
+  <div class="calendar-actions">
+    <a href="https://coterie.stage.grc.red/public/feed/calendar" class="btn btn-outline btn-sm" target="_blank" rel="noopener">
+      Subscribe (iCal)
+    </a>
+  </div>
+</div>
+
+
+<div x-show="loading" class="loading">Loading calendar</div>
+
+
+<div x-show="error" class="error" x-text="error"></div>
+
+
+<div x-show="!loading && !error && view === 'grid'" x-cloak>
+  
+  <div class="calendar-nav">
+    <button @click="prevMonth()" class="btn btn-outline btn-sm">&larr; Prev</button>
+    <span class="calendar-month-label" x-text="monthLabel"></span>
+    <button @click="nextMonth()" class="btn btn-outline btn-sm">Next &rarr;</button>
+    <button @click="goToToday()" class="btn btn-outline btn-sm">Today</button>
+  </div>
+
+  
+  <div class="calendar-grid-container">
+    
+    <div class="calendar-header">
+      <template x-for="day in ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']">
+        <div class="calendar-header-cell" x-text="day"></div>
+      </template>
+    </div>
+
+    
+    <div class="calendar-body">
+      <template x-for="day in calendarDays" :key="day.dateStr || Math.random()">
+        <div
+          class="calendar-cell"
+          :class="{
+            'calendar-cell-empty': !day.number,
+            'calendar-cell-today': day.isToday,
+            'calendar-cell-selected': day.isSelected,
+            'calendar-cell-has-events': day.events.length > 0
+          }"
+          @click="selectDay(day)"
+        >
+          <span class="calendar-day-number" x-text="day.number"></span>
+          
+          <div class="calendar-day-events" x-show="day.events.length > 0">
+            <template x-for="(event, i) in day.events.slice(0, 2)" :key="event.id">
+              <div class="calendar-event-title" x-text="event.title"></div>
+            </template>
+            <div x-show="day.events.length > 2" class="calendar-event-more" x-text="'+' + (day.events.length - 2) + ' more'"></div>
+          </div>
+          
+          <div class="calendar-day-dots" x-show="day.events.length > 0">
+            <template x-for="(event, i) in day.events.slice(0, 3)" :key="event.id">
+              <span class="calendar-dot"></span>
+            </template>
+            <span x-show="day.events.length > 3" class="calendar-more">+</span>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  
+  <div x-show="selectedDate" class="calendar-selected-day" x-cloak>
+    <div class="calendar-selected-header">
+      <h3 x-text="selectedDate ? formatFullDate(selectedDate) : ''"></h3>
+      <button @click="clearSelection()" class="btn btn-outline btn-sm">Close</button>
+    </div>
+
+    <div x-show="selectedDateEvents.length === 0" class="empty">
+      No events on this day
+    </div>
+
+    <div class="card-list">
+      <template x-for="event in selectedDateEvents" :key="event.id">
+        <div class="card">
+          <h4 class="card-title" x-text="event.title"></h4>
+          <div class="card-meta">
+            <span class="event-date" x-text="formatEventTime(event.start_time)"></span>
+            <span x-show="event.location" class="event-location" x-text="event.location"></span>
+          </div>
+          <p x-show="event.description" class="card-description" x-text="event.description"></p>
+        </div>
+      </template>
+    </div>
+  </div>
+</div>
+
+
+<div x-show="!loading && !error && view === 'list'" x-cloak>
+  <div x-show="filteredEvents.length === 0" class="empty">
+    <span x-show="search">No events matching "<span x-text="search"></span>"</span>
+    <span x-show="!search">No upcoming events</span>
+  </div>
+
+  <div class="card-list">
+    <template x-for="event in filteredEvents" :key="event.id">
+      <div class="card">
+        <h4 class="card-title" x-text="event.title"></h4>
+        <div class="card-meta">
+          <span class="event-date" x-text="formatEventDate(event.start_time) + ' at ' + formatEventTime(event.start_time)"></span>
+          <span x-show="event.location" class="event-location" x-text="event.location"></span>
+        </div>
+        <p x-show="event.description" class="card-description" x-text="event.description"></p>
+        <div x-show="event.event_type" class="card-badges">
+          <span class="badge" x-text="event.event_type"></span>
+        </div>
+      </div>
+    </template>
+  </div>
+</div>
+
+</div>
+
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-content">
+        
+        <div class="footer-links">
+          <a href="mailto:info@neontemple.net">Email</a>
+          
+          
+          
+          
+        </div>
+        <div class="footer-copy">
+          <span class="prompt">&gt;</span> 2026 Neon Temple
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/calendar.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="/js/main.js"></script>
+</body>
+</html>
