@@ -18,7 +18,8 @@ document.addEventListener('alpine:init', () => {
     currentVideo: 0,
     loading: true,
     error: null,
-    channelId: 'UCv865b5CV4mtKw2YJ8uqU_A',
+    // Live streams playlist (UULV prefix) for channel UCv865b5CV4mtKw2YJ8uqU_A
+    playlistId: 'UULVv865b5CV4mtKw2YJ8uqU_A',
 
     async init() {
       await this.fetchVideos();
@@ -29,7 +30,7 @@ document.addEventListener('alpine:init', () => {
       this.error = null;
 
       // Try multiple CORS proxies in case one is down
-      const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${this.channelId}`;
+      const rssUrl = `https://www.youtube.com/feeds/videos.xml?playlist_id=${this.playlistId}`;
       const proxies = [
         `https://corsproxy.io/?${encodeURIComponent(rssUrl)}`,
         `https://api.allorigins.win/raw?url=${encodeURIComponent(rssUrl)}`,
