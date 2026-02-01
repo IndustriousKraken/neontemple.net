@@ -9,6 +9,75 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /**
+ * Alpine.js Video Slider Component
+ * Fetches recent videos from YouTube RSS feed
+ */
+document.addEventListener('alpine:init', () => {
+  Alpine.data('videoSlider', () => ({
+    videos: [],
+    currentVideo: 0,
+    loading: true,
+    error: null,
+    channelId: 'UCv865b5CV4mtKw2YJ8uqU_A',
+
+    async init() {
+      await this.fetchVideos();
+    },
+
+    async fetchVideos() {
+      this.loading = true;
+      this.error = null;
+
+      // Try multiple CORS proxies in case one is down
+      const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${this.channelId}`;
+      const proxies = [
+        `https://corsproxy.io/?${encodeURIComponent(rssUrl)}`,
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(rssUrl)}`,
+      ];
+
+      let xml = null;
+      for (const proxyUrl of proxies) {
+        try {
+          const response = await fetch(proxyUrl);
+          if (response.ok) {
+            xml = await response.text();
+            if (xml && xml.includes('<entry>')) break;
+          }
+        } catch (e) {
+          console.log('Proxy failed:', proxyUrl);
+        }
+      }
+
+      try {
+        if (!xml || !xml.includes('<entry>')) throw new Error('All proxies failed');
+
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(xml, 'application/xml');
+
+        const entries = doc.querySelectorAll('entry');
+        this.videos = Array.from(entries).slice(0, 5).map(entry => {
+          const videoId = entry.querySelector('yt\\:videoId, videoId')?.textContent;
+          const title = entry.querySelector('title')?.textContent;
+          return { id: videoId, title: title || 'Video' };
+        }).filter(v => v.id);
+
+        if (this.videos.length === 0) {
+          throw new Error('No videos found');
+        }
+        this.error = null;
+      } catch (err) {
+        console.error('Failed to load YouTube videos:', err);
+        // On failure, show nothing - just link to YouTube
+        this.error = null;
+        this.videos = [];
+      } finally {
+        this.loading = false;
+      }
+    }
+  }));
+});
+
+/**
  * Load and display featured announcements in banner
  */
 async function initAnnouncementBanner() {

@@ -43,17 +43,78 @@
 
     <main class="site-main">
       
-<div data-page="home">
+<div data-page="home" x-data="videoSlider()">
 
 <section class="hero">
   <h1 class="hero-title">Neon Temple</h1>
   <p class="hero-tagline">A cybersecurity guild in Tampa Bay. Not a cult!</p>
 </section>
 
+
+<section class="video-slider-section">
+  <div x-show="loading" class="loading">Loading videos...</div>
+  <div x-show="!loading && videos.length === 0" class="video-fallback">
+    <a href="https://www.youtube.com/channel/UCv865b5CV4mtKw2YJ8uqU_A" target="_blank" rel="noopener" class="btn">
+      Watch our videos on YouTube &rarr;
+    </a>
+  </div>
+  <div x-show="!loading && videos.length > 0" x-cloak class="video-slider">
+    <div class="video-main">
+      <div class="youtube-embed">
+        <iframe
+          :src="videos[currentVideo] ? 'https://www.youtube-nocookie.com/embed/' + videos[currentVideo].id + '?rel=0' : ''"
+          frameborder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen>
+        </iframe>
+      </div>
+    </div>
+    <div class="video-selector">
+      <template x-for="(video, index) in videos" :key="video.id">
+        <button
+          class="video-thumb"
+          :class="{ 'active': currentVideo === index }"
+          @click="currentVideo = index"
+        >
+          <img :src="'https://img.youtube.com/vi/' + video.id + '/mqdefault.jpg'" :alt="video.title">
+          <span class="video-thumb-title" x-text="video.title"></span>
+        </button>
+      </template>
+      <a href="https://www.youtube.com/channel/UCv865b5CV4mtKw2YJ8uqU_A" target="_blank" rel="noopener" class="video-more">
+        More on YouTube &rarr;
+      </a>
+    </div>
+  </div>
+</section>
+
 <p>Red teamers, blue teamers, purple teamers, and the occasional chaos agent. We work at startups, enterprises, and places we can&rsquo;t talk about.</p>
 <p>We meet weekly. The content is substantive: live exploitation, defense techniques, tool deep-dives, career strategy. If you&rsquo;ve been to other &ldquo;security meetups&rdquo; and left wondering when the actual security would start, this is different.</p>
 <p>Members look out for each other. When someone&rsquo;s ready to move or gets caught in a layoff, the network activates. We&rsquo;re plugged into the companies our members own and work for. That&rsquo;s not a pitch—it&rsquo;s just what happens when you put this many practitioners in a room together every week.</p>
 
+
+<section class="section social-links-section">
+  <div class="section-header">
+    <h2 class="section-title">Connect With Us</h2>
+  </div>
+  <div class="social-links-grid">
+    <a href="https://x.com/TheNeonTemple" target="_blank" rel="noopener" class="social-link-card">
+      <span class="social-link-name">X / Twitter</span>
+      <span class="social-link-handle">@TheNeonTemple</span>
+    </a>
+    <a href="https://www.linkedin.com/company/theneontemple/" target="_blank" rel="noopener" class="social-link-card">
+      <span class="social-link-name">LinkedIn</span>
+      <span class="social-link-handle">Neon Temple</span>
+    </a>
+    <a href="https://www.instagram.com/theneontemple/" target="_blank" rel="noopener" class="social-link-card">
+      <span class="social-link-name">Instagram</span>
+      <span class="social-link-handle">@theneontemple</span>
+    </a>
+    <a href="https://www.facebook.com/TheNeonTemple" target="_blank" rel="noopener" class="social-link-card">
+      <span class="social-link-name">Facebook</span>
+      <span class="social-link-handle">Neon Temple</span>
+    </a>
+  </div>
+</section>
 
 <section class="section">
   <div class="section-header">
