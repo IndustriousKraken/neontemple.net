@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ if .IsHome }}{{ .Site.Title }}{{ else }}{{ .Title }} | {{ .Site.Title }}{{ end }}</title>
   <meta name="description" content="{{ with .Description }}{{ . }}{{ else }}{{ .Site.Params.description }}{{ end }}">
-  <link rel="stylesheet" href="{{ "css/style.css" | relURL }}">
+  {{- $css := resources.Get "css/style.css" | resources.Fingerprint "sha256" }}
+  <link rel="stylesheet" href="{{ $css.RelPermalink }}">
   <script>
     window.COTERIE_API_URL = '{{ .Site.Params.coterieAPI }}';
     window.COTERIE_PORTAL_URL = '{{ .Site.Params.portalURL }}';
@@ -51,9 +52,12 @@
     </footer>
   </div>
 
-  <script src="{{ "js/api.js" | relURL }}"></script>
-  <script src="{{ "js/calendar.js" | relURL }}"></script>
+  {{- $api := resources.Get "js/api.js" | resources.Fingerprint "sha256" }}
+  {{- $calendar := resources.Get "js/calendar.js" | resources.Fingerprint "sha256" }}
+  {{- $main := resources.Get "js/main.js" | resources.Fingerprint "sha256" }}
+  <script src="{{ $api.RelPermalink }}"></script>
+  <script src="{{ $calendar.RelPermalink }}"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-  <script src="{{ "js/main.js" | relURL }}"></script>
+  <script src="{{ $main.RelPermalink }}"></script>
 </body>
 </html>
