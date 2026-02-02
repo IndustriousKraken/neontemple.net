@@ -2,43 +2,43 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
   xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
-    <loc>http://localhost:1313/tags/blue/</loc>
+    <loc>https://neontemple.net/tags/blue/</loc>
     <lastmod>2023-03-15T11:00:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/tags/green/</loc>
+    <loc>https://neontemple.net/tags/green/</loc>
     <lastmod>2023-03-15T11:00:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/</loc>
+    <loc>https://neontemple.net/</loc>
     <lastmod>2023-03-15T11:00:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/posts/post-3/</loc>
+    <loc>https://neontemple.net/posts/post-3/</loc>
     <lastmod>2023-03-15T11:00:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/tags/red/</loc>
+    <loc>https://neontemple.net/tags/red/</loc>
     <lastmod>2023-03-15T11:00:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/tags/</loc>
+    <loc>https://neontemple.net/tags/</loc>
     <lastmod>2023-03-15T11:00:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/posts/post-2/</loc>
+    <loc>https://neontemple.net/posts/post-2/</loc>
     <lastmod>2023-02-15T10:00:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/posts/post-1/</loc>
+    <loc>https://neontemple.net/posts/post-1/</loc>
     <lastmod>2023-01-15T09:00:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/posts/</loc>
+    <loc>https://neontemple.net/posts/</loc>
     <lastmod>2023-01-01T08:30:00-07:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/about/</loc>
+    <loc>https://neontemple.net/about/</loc>
   </url><url>
-    <loc>http://localhost:1313/announcements/</loc>
+    <loc>https://neontemple.net/announcements/</loc>
   </url><url>
-    <loc>http://localhost:1313/calendar/</loc>
+    <loc>https://neontemple.net/calendar/</loc>
   </url><url>
-    <loc>http://localhost:1313/categories/</loc>
+    <loc>https://neontemple.net/categories/</loc>
   </url><url>
-    <loc>http://localhost:1313/join/</loc>
+    <loc>https://neontemple.net/join/</loc>
   </url><url>
-    <loc>http://localhost:1313/swag/</loc>
+    <loc>https://neontemple.net/swag/</loc>
   </url>
 </urlset>

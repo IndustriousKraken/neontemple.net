@@ -2,6 +2,7 @@ baseURL = 'https://neontemple.net/'
 languageCode = 'en-us'
 title = 'Neon Temple'
 theme = 'terminal'
+relativeURLs = true
 
 [params]
   description = 'A cybersecurity guild in Tampa Bay. Not a cult!'
