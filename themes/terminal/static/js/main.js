@@ -200,6 +200,16 @@ document.addEventListener('alpine:init', () => {
 });
 
 /**
+ * Featured banner state
+ */
+let featuredBannerState = {
+  announcements: [],
+  currentIndex: 0,
+  timer: null,
+  rotateInterval: 6000, // 6 seconds per announcement
+};
+
+/**
  * Load and display featured announcements in banner
  */
 async function initAnnouncementBanner() {
@@ -215,52 +225,105 @@ async function initAnnouncementBanner() {
     // Store featured announcements for modal access
     featured.forEach(a => contentStore.announcements[a.id] = a);
 
+    // Set up rotation state
+    featuredBannerState.announcements = featured;
+    featuredBannerState.currentIndex = 0;
+
     // Render the banner
-    renderFeaturedBanner(banner, featured);
+    renderFeaturedBanner(banner);
     banner.classList.remove('hidden');
+
+    // Start auto-rotation if multiple featured
+    if (featured.length > 1) {
+      startBannerRotation(banner);
+
+      // Pause rotation on hover
+      banner.addEventListener('mouseenter', () => stopBannerRotation());
+      banner.addEventListener('mouseleave', () => startBannerRotation(banner));
+    }
   } catch (err) {
     console.log('Could not load announcements');
+  }
+}
+
+function startBannerRotation(banner) {
+  stopBannerRotation();
+  featuredBannerState.timer = setInterval(() => {
+    featuredBannerState.currentIndex =
+      (featuredBannerState.currentIndex + 1) % featuredBannerState.announcements.length;
+    renderFeaturedBanner(banner);
+  }, featuredBannerState.rotateInterval);
+}
+
+function stopBannerRotation() {
+  if (featuredBannerState.timer) {
+    clearInterval(featuredBannerState.timer);
+    featuredBannerState.timer = null;
+  }
+}
+
+function goToFeaturedSlide(index, banner) {
+  featuredBannerState.currentIndex = index;
+  renderFeaturedBanner(banner || document.getElementById('announcement-banner'));
+  // Reset timer
+  const bannerEl = banner || document.getElementById('announcement-banner');
+  if (featuredBannerState.announcements.length > 1) {
+    startBannerRotation(bannerEl);
   }
 }
 
 /**
  * Render featured announcement as hero banner
  */
-function renderFeaturedBanner(banner, featured) {
-  const first = featured[0];
-  const moreCount = featured.length - 1;
-  const hasImage = !!first.image_url;
+function renderFeaturedBanner(banner) {
+  const { announcements, currentIndex } = featuredBannerState;
+  const current = announcements[currentIndex];
+  const hasImage = !!current.image_url;
+  const count = announcements.length;
+
+  // Navigation with arrows, dots, and counter (if multiple)
+  const navHtml = count > 1 ? `
+    <div class="featured-hero-nav">
+      <button class="featured-hero-arrow" onclick="event.stopPropagation(); goToFeaturedSlide(${(currentIndex - 1 + count) % count})" aria-label="Previous">&larr;</button>
+      <div class="featured-hero-dots">
+        ${announcements.map((a, i) => `
+          <button
+            class="featured-hero-dot ${i === currentIndex ? 'active' : ''}"
+            onclick="event.stopPropagation(); goToFeaturedSlide(${i})"
+            aria-label="Go to announcement ${i + 1}"
+          ></button>
+        `).join('')}
+      </div>
+      <button class="featured-hero-arrow" onclick="event.stopPropagation(); goToFeaturedSlide(${(currentIndex + 1) % count})" aria-label="Next">&rarr;</button>
+      <span class="featured-hero-counter">${currentIndex + 1} / ${count}</span>
+    </div>
+  ` : '';
 
   if (hasImage) {
     // Hero banner with background image
-    const imgUrl = getImageUrl(first.image_url);
+    const imgUrl = getImageUrl(current.image_url);
     banner.className = 'featured-hero';
     banner.style.backgroundImage = `url(${imgUrl})`;
     banner.innerHTML = `
       <div class="featured-hero-overlay"></div>
-      <div class="featured-hero-content" onclick="showAnnouncementModal('${first.id}')">
+      <div class="featured-hero-content" onclick="showAnnouncementModal('${current.id}')">
         <div class="featured-hero-badge">Featured</div>
-        <h2 class="featured-hero-title">${escapeHtml(first.title)}</h2>
-        ${first.content ? `<p class="featured-hero-preview">${escapeHtml(truncate(first.content, 120))}</p>` : ''}
+        <h2 class="featured-hero-title">${escapeHtml(current.title)}</h2>
+        ${current.content ? `<p class="featured-hero-preview">${escapeHtml(truncate(current.content, 120))}</p>` : ''}
         <span class="featured-hero-cta">Click to read more</span>
       </div>
-      ${moreCount > 0 ? `
-        <div class="featured-hero-more">
-          <span>+${moreCount} more featured</span>
-          <a href="/announcements/">View all</a>
-        </div>
-      ` : ''}
+      ${navHtml}
     `;
   } else {
     // Text-only banner (no image)
     banner.className = 'featured-banner';
     banner.innerHTML = `
-      <div class="featured-banner-content" onclick="showAnnouncementModal('${first.id}')">
+      <div class="featured-banner-content" onclick="showAnnouncementModal('${current.id}')">
         <span class="featured-banner-badge">Featured</span>
-        <span class="featured-banner-title">${escapeHtml(first.title)}</span>
-        ${first.content ? `<span class="featured-banner-preview"> - ${escapeHtml(truncate(first.content, 80))}</span>` : ''}
-        ${moreCount > 0 ? `<span class="featured-banner-count">+${moreCount} more</span>` : ''}
+        <span class="featured-banner-title">${escapeHtml(current.title)}</span>
+        ${current.content ? `<span class="featured-banner-preview"> - ${escapeHtml(truncate(current.content, 80))}</span>` : ''}
       </div>
+      ${navHtml}
     `;
   }
 }
