@@ -22,8 +22,11 @@
     <div x-show="showSearchDropdown" x-cloak class="search-dropdown">
       <template x-for="event in searchResults" :key="event.id">
         <div class="search-result" @mousedown="goToEvent(event)">
-          <div class="search-result-title" x-text="event.title"></div>
-          <div class="search-result-meta" x-text="formatEventDate(event.start_time) + ' at ' + formatEventTime(event.start_time)"></div>
+          <img x-show="event.image_url" :src="getImageUrl(event.image_url)" alt="" class="search-result-thumb">
+          <div class="search-result-content">
+            <div class="search-result-title" x-text="event.title"></div>
+            <div class="search-result-meta" x-text="formatEventDate(event.start_time) + ' at ' + formatEventTime(event.start_time)"></div>
+          </div>
         </div>
       </template>
       <div x-show="searchFilteredEvents.length > 6" class="search-result-more">
@@ -123,13 +126,18 @@
 
     <div class="card-list">
       <template x-for="event in selectedDateEvents" :key="event.id">
-        <div class="card">
-          <h4 class="card-title" x-text="event.title"></h4>
-          <div class="card-meta">
-            <span class="event-date" x-text="formatEventTime(event.start_time)"></span>
-            <span x-show="event.location" class="event-location" x-text="event.location"></span>
+        <div class="card card-clickable" @click="openEventModal(event)">
+          <div x-show="event.image_url" class="card-thumb" x-data="{ loaded: false }" :class="{ 'thumb-tall': loaded && $refs.img && ($refs.img.naturalWidth / $refs.img.naturalHeight) < 0.9 }">
+            <img x-ref="img" :src="getImageUrl(event.image_url)" alt="" @load="loaded = true">
           </div>
-          <p x-show="event.description" class="card-description" x-text="event.description"></p>
+          <div class="card-body">
+            <h4 class="card-title" x-text="event.title"></h4>
+            <div class="card-meta">
+              <span class="event-date" x-text="formatEventTime(event.start_time)"></span>
+              <span x-show="event.location" class="event-location" x-text="event.location"></span>
+            </div>
+            <p x-show="event.description" class="card-description" x-text="event.description.substring(0, 120) + (event.description.length > 120 ? '...' : '')"></p>
+          </div>
         </div>
       </template>
     </div>
@@ -145,15 +153,20 @@
 
   <div class="card-list">
     <template x-for="event in filteredEvents" :key="event.id">
-      <div class="card">
-        <h4 class="card-title" x-text="event.title"></h4>
-        <div class="card-meta">
-          <span class="event-date" x-text="formatEventDate(event.start_time) + ' at ' + formatEventTime(event.start_time)"></span>
-          <span x-show="event.location" class="event-location" x-text="event.location"></span>
+      <div class="card card-clickable" @click="openEventModal(event)">
+        <div x-show="event.image_url" class="card-thumb-large" x-data="{ loaded: false }" :class="{ 'thumb-tall': loaded && $refs.img && ($refs.img.naturalWidth / $refs.img.naturalHeight) < 0.9 }">
+          <img x-ref="img" :src="getImageUrl(event.image_url)" alt="" @load="loaded = true">
         </div>
-        <p x-show="event.description" class="card-description" x-text="event.description"></p>
-        <div x-show="event.event_type" class="card-badges">
-          <span class="badge" x-text="event.event_type"></span>
+        <div class="card-body">
+          <h4 class="card-title" x-text="event.title"></h4>
+          <div class="card-meta">
+            <span class="event-date" x-text="formatEventDate(event.start_time) + ' at ' + formatEventTime(event.start_time)"></span>
+            <span x-show="event.location" class="event-location" x-text="event.location"></span>
+          </div>
+          <p x-show="event.description" class="card-description" x-text="event.description.substring(0, 150) + (event.description.length > 150 ? '...' : '')"></p>
+          <div x-show="event.event_type" class="card-badges">
+            <span class="badge" x-text="event.event_type"></span>
+          </div>
         </div>
       </div>
     </template>

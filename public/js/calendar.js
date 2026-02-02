@@ -113,11 +113,32 @@ document.addEventListener('alpine:init', () => {
 
       try {
         this.events = await CoterieAPI.getEvents({ limit: 100 });
+        // Store events for modal access
+        this.events.forEach(e => {
+          if (window.contentStore) {
+            window.contentStore.events[e.id] = e;
+          }
+        });
       } catch (err) {
         this.error = 'Could not load events';
         console.error(err);
       } finally {
         this.loading = false;
+      }
+    },
+
+    getImageUrl(imagePath) {
+      if (!imagePath) return '';
+      if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+        return imagePath;
+      }
+      const baseUrl = window.COTERIE_API_URL || '';
+      return `${baseUrl}/${imagePath}`;
+    },
+
+    openEventModal(event) {
+      if (typeof showEventModal === 'function') {
+        showEventModal(event.id);
       }
     },
 

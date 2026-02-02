@@ -3,11 +3,12 @@
  * Handles page initialization and dynamic content loading
  */
 
-// Store for full content to show in modals
+// Store for full content to show in modals (global for calendar.js access)
 const contentStore = {
   events: {},
   announcements: {},
 };
+window.contentStore = contentStore;
 
 document.addEventListener('DOMContentLoaded', () => {
   createModal();
@@ -211,71 +212,56 @@ async function initAnnouncementBanner() {
 
     if (featured.length === 0) return;
 
-    // Store announcements for expansion
-    banner.dataset.announcements = JSON.stringify(featured);
-    banner.dataset.expanded = 'false';
+    // Store featured announcements for modal access
+    featured.forEach(a => contentStore.announcements[a.id] = a);
 
-    // Render collapsed state
-    renderBannerCollapsed(banner, featured);
+    // Render the banner
+    renderFeaturedBanner(banner, featured);
     banner.classList.remove('hidden');
-
-    // Click to expand/collapse
-    banner.addEventListener('click', (e) => {
-      if (e.target.tagName === 'A') return; // Don't toggle on link clicks
-      toggleBanner(banner, featured);
-    });
   } catch (err) {
     console.log('Could not load announcements');
   }
 }
 
-function renderBannerCollapsed(banner, featured) {
+/**
+ * Render featured announcement as hero banner
+ */
+function renderFeaturedBanner(banner, featured) {
   const first = featured[0];
   const moreCount = featured.length - 1;
-  const countBadge = moreCount > 0
-    ? `<span class="banner-count">+${moreCount} more</span>`
-    : '';
+  const hasImage = !!first.image_url;
 
-  banner.innerHTML = `
-    <div class="banner-collapsed">
-      <span class="banner-title"><strong>${escapeHtml(first.title)}</strong></span>
-      ${first.content ? `<span class="banner-preview"> - ${escapeHtml(truncate(first.content, 80))}</span>` : ''}
-      ${countBadge}
-      <span class="banner-expand-hint">Click to expand</span>
-    </div>
-  `;
-  banner.dataset.expanded = 'false';
-}
-
-function renderBannerExpanded(banner, featured) {
-  let html = '<div class="banner-expanded">';
-
-  for (const announcement of featured) {
-    html += `
-      <div class="banner-announcement">
-        <div class="banner-announcement-title"><strong>${escapeHtml(announcement.title)}</strong></div>
-        <div class="banner-announcement-meta">${formatDate(announcement.published_at)}</div>
-        ${announcement.content ? `<div class="banner-announcement-content">${escapeHtml(announcement.content)}</div>` : ''}
+  if (hasImage) {
+    // Hero banner with background image
+    const imgUrl = getImageUrl(first.image_url);
+    banner.className = 'featured-hero';
+    banner.style.backgroundImage = `url(${imgUrl})`;
+    banner.innerHTML = `
+      <div class="featured-hero-overlay"></div>
+      <div class="featured-hero-content" onclick="showAnnouncementModal('${first.id}')">
+        <div class="featured-hero-badge">Featured</div>
+        <h2 class="featured-hero-title">${escapeHtml(first.title)}</h2>
+        ${first.content ? `<p class="featured-hero-preview">${escapeHtml(truncate(first.content, 120))}</p>` : ''}
+        <span class="featured-hero-cta">Click to read more</span>
+      </div>
+      ${moreCount > 0 ? `
+        <div class="featured-hero-more">
+          <span>+${moreCount} more featured</span>
+          <a href="/announcements/">View all</a>
+        </div>
+      ` : ''}
+    `;
+  } else {
+    // Text-only banner (no image)
+    banner.className = 'featured-banner';
+    banner.innerHTML = `
+      <div class="featured-banner-content" onclick="showAnnouncementModal('${first.id}')">
+        <span class="featured-banner-badge">Featured</span>
+        <span class="featured-banner-title">${escapeHtml(first.title)}</span>
+        ${first.content ? `<span class="featured-banner-preview"> - ${escapeHtml(truncate(first.content, 80))}</span>` : ''}
+        ${moreCount > 0 ? `<span class="featured-banner-count">+${moreCount} more</span>` : ''}
       </div>
     `;
-  }
-
-  html += `
-    <div class="banner-footer">
-      <a href="/announcements/">View all announcements</a>
-      <span class="banner-collapse-hint">Click to collapse</span>
-    </div>
-  </div>`;
-
-  banner.innerHTML = html;
-  banner.dataset.expanded = 'true';
-}
-
-function toggleBanner(banner, featured) {
-  if (banner.dataset.expanded === 'true') {
-    renderBannerCollapsed(banner, featured);
-  } else {
-    renderBannerExpanded(banner, featured);
   }
 }
 
