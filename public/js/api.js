@@ -103,6 +103,22 @@ const CoterieAPI = {
   },
 
   /**
+   * Get count of members-only announcements
+   * @returns {Promise<Object>} Object with count property
+   */
+  async getPrivateAnnouncementCount() {
+    return this.fetch('/public/announcements/private-count');
+  },
+
+  /**
+   * Get count of members-only upcoming events
+   * @returns {Promise<Object>} Object with count property
+   */
+  async getPrivateEventCount() {
+    return this.fetch('/public/events/private-count');
+  },
+
+  /**
    * Health check
    * @returns {Promise<boolean>} True if API is reachable
    */

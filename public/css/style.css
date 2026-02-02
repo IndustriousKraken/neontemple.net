@@ -1050,6 +1050,279 @@ select.form-input {
   border-radius: 0 !important;
 }
 
+/* Members-only teaser */
+.members-only-teaser {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--bg-elevated);
+  border: 1px dashed var(--accent-dim);
+  margin-bottom: var(--space-md);
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.members-only-teaser .lock-icon {
+  font-size: 1rem;
+}
+
+.members-only-teaser a {
+  color: var(--accent);
+  margin-left: auto;
+}
+
+.members-only-teaser a:hover {
+  text-decoration: underline;
+}
+
+/* Private/members-only event card */
+.card-private {
+  border-style: dashed;
+  border-color: var(--accent-dim);
+  background: var(--bg-elevated);
+}
+
+.card-private .card-title {
+  color: var(--text-secondary);
+}
+
+.card-private .lock-icon {
+  margin-right: var(--space-xs);
+}
+
+.card-private .card-description a {
+  color: var(--accent);
+}
+
+/* Clickable cards */
+.card-clickable {
+  cursor: pointer;
+  display: flex;
+  gap: var(--space-md);
+}
+
+.card-clickable:hover {
+  border-color: var(--accent);
+}
+
+.card-clickable .card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Card thumbnails with pan animation */
+.card-thumb,
+.card-thumb-large {
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  position: relative;
+}
+
+.card-thumb {
+  width: 80px;
+  height: 80px;
+}
+
+.card-thumb-large {
+  width: 140px;
+  height: 100px;
+}
+
+/* Tall images get more vertical space */
+.card-thumb.thumb-tall {
+  height: 120px;
+}
+
+.card-thumb-large.thumb-tall {
+  height: 160px;
+}
+
+.card-thumb img,
+.card-thumb-large img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transition: object-position 0.3s ease;
+}
+
+/* Hover animation - pan through the image */
+.card-clickable:hover .card-thumb img,
+.card-clickable:hover .card-thumb-large img {
+  animation: thumb-pan-horizontal 3s ease-in-out infinite alternate;
+}
+
+/* Tall images pan vertically */
+.card-clickable:hover .thumb-tall img {
+  animation: thumb-pan-vertical 3s ease-in-out infinite alternate;
+}
+
+/* Horizontal pan for wide/square images - focus on thirds */
+@keyframes thumb-pan-horizontal {
+  0% {
+    object-position: 33% center;
+  }
+  100% {
+    object-position: 67% center;
+  }
+}
+
+/* Vertical pan for tall images - focus on thirds */
+@keyframes thumb-pan-vertical {
+  0% {
+    object-position: center 33%;
+  }
+  100% {
+    object-position: center 67%;
+  }
+}
+
+/* Responsive: hide thumbnails on very small screens */
+@media (max-width: 400px) {
+  .card-thumb,
+  .card-thumb-large {
+    display: none;
+  }
+}
+
+/* Modal overlay */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-md);
+  z-index: 1000;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+.modal-overlay.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Modal container */
+.modal {
+  background: var(--bg-secondary);
+  border: 2px solid var(--accent);
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  transform: translateY(20px);
+  transition: transform 0.2s ease;
+}
+
+.modal-overlay.active .modal {
+  transform: translateY(0);
+}
+
+/* Modal close button */
+.modal-close {
+  position: absolute;
+  top: var(--space-sm);
+  right: var(--space-sm);
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 1.5rem;
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  z-index: 1;
+}
+
+.modal-close:hover {
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+/* Modal image - show full artwork without cropping */
+#modal-image-container {
+  background: var(--bg-primary);
+  position: relative;
+}
+
+#modal-image-container a {
+  display: block;
+  cursor: zoom-in;
+}
+
+#modal-image-container a::after {
+  content: 'Click to view full size';
+  position: absolute;
+  bottom: var(--space-sm);
+  right: var(--space-sm);
+  background: rgba(0, 0, 0, 0.7);
+  color: var(--text-secondary);
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+#modal-image-container a:hover::after {
+  opacity: 1;
+}
+
+.modal-image {
+  width: 100%;
+  max-height: 400px;
+  object-fit: contain;
+  display: block;
+}
+
+/* Modal body */
+.modal-body {
+  padding: var(--space-lg);
+}
+
+.modal-body h3 {
+  margin: 0 0 var(--space-md);
+  font-size: 1.25rem;
+  color: var(--text-primary);
+  padding-right: var(--space-xl);
+}
+
+/* Modal meta info */
+.modal-meta {
+  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-meta p {
+  margin: 0 0 var(--space-xs);
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.modal-meta .meta-label {
+  color: var(--text-muted);
+  margin-right: var(--space-sm);
+}
+
+/* Modal content */
+.modal-content {
+  color: var(--text-secondary);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
 /* Print styles */
 @media print {
   body::before {

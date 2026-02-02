@@ -3,10 +3,130 @@
  * Handles page initialization and dynamic content loading
  */
 
+// Store for full content to show in modals
+const contentStore = {
+  events: {},
+  announcements: {},
+};
+
 document.addEventListener('DOMContentLoaded', () => {
+  createModal();
   initAnnouncementBanner();
   initPageSpecific();
 });
+
+/**
+ * Create the modal element
+ */
+function createModal() {
+  const modal = document.createElement('div');
+  modal.id = 'detail-modal';
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `
+    <div class="modal">
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+      <div id="modal-image-container"></div>
+      <div class="modal-body">
+        <h3 id="modal-title"></h3>
+        <div id="modal-meta" class="modal-meta"></div>
+        <div id="modal-content" class="modal-content"></div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  // Close on overlay click
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) closeModal();
+  });
+
+  // Close on escape key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeModal();
+  });
+}
+
+/**
+ * Show event details in modal
+ */
+function showEventModal(eventId) {
+  const event = contentStore.events[eventId];
+  if (!event) return;
+
+  const date = new Date(event.start_time);
+  const dateStr = date.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
+  const timeStr = date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+
+  const imageContainer = document.getElementById('modal-image-container');
+  if (event.image_url) {
+    const imgUrl = getImageUrl(event.image_url);
+    imageContainer.innerHTML = `<a href="${imgUrl}" target="_blank" title="View full image"><img src="${imgUrl}" alt="" class="modal-image"></a>`;
+  } else {
+    imageContainer.innerHTML = '';
+  }
+
+  document.getElementById('modal-title').textContent = event.title;
+  document.getElementById('modal-meta').innerHTML = `
+    <p><span class="meta-label">Date:</span> ${dateStr}</p>
+    <p><span class="meta-label">Time:</span> ${timeStr}</p>
+    ${event.location ? `<p><span class="meta-label">Location:</span> ${escapeHtml(event.location)}</p>` : ''}
+    ${event.event_type ? `<p><span class="meta-label">Type:</span> ${escapeHtml(event.event_type)}</p>` : ''}
+  `;
+  document.getElementById('modal-content').textContent = event.description || 'No description available.';
+
+  document.getElementById('detail-modal').classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+/**
+ * Show announcement details in modal
+ */
+function showAnnouncementModal(announcementId) {
+  const announcement = contentStore.announcements[announcementId];
+  if (!announcement) return;
+
+  const date = new Date(announcement.published_at || announcement.created_at);
+  const dateStr = date.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
+
+  const imageContainer = document.getElementById('modal-image-container');
+  if (announcement.image_url) {
+    const imgUrl = getImageUrl(announcement.image_url);
+    imageContainer.innerHTML = `<a href="${imgUrl}" target="_blank" title="View full image"><img src="${imgUrl}" alt="" class="modal-image"></a>`;
+  } else {
+    imageContainer.innerHTML = '';
+  }
+
+  document.getElementById('modal-title').textContent = announcement.title;
+  document.getElementById('modal-meta').innerHTML = `
+    <p><span class="meta-label">Published:</span> ${dateStr}</p>
+    ${announcement.announcement_type ? `<p><span class="meta-label">Type:</span> ${escapeHtml(announcement.announcement_type)}</p>` : ''}
+  `;
+  document.getElementById('modal-content').textContent = announcement.content || 'No content available.';
+
+  document.getElementById('detail-modal').classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+/**
+ * Close the modal
+ */
+function closeModal() {
+  document.getElementById('detail-modal').classList.remove('active');
+  document.body.style.overflow = '';
+}
 
 /**
  * Alpine.js Video Slider Component
@@ -192,12 +312,40 @@ async function loadHomeEvents() {
   try {
     const events = await CoterieAPI.getEvents({ limit: 3 });
 
-    if (events.length === 0) {
+    // Try to get private count separately so it doesn't break main content
+    let privateCount = 0;
+    try {
+      const result = await CoterieAPI.getPrivateEventCount();
+      privateCount = result?.count || 0;
+    } catch (e) {
+      // Endpoint may not exist yet, ignore
+    }
+
+    let html = '';
+
+    // Show members-only teaser if there are private events
+    if (privateCount > 0) {
+      const plural = privateCount === 1 ? '' : 's';
+      html += `
+        <div class="members-only-teaser">
+          <span class="lock-icon">&#128274;</span>
+          <span>${privateCount} members-only event${plural}</span>
+          <a href="${window.COTERIE_PORTAL_URL || ''}/portal">Log in to view</a>
+        </div>
+      `;
+    }
+
+    if (events.length === 0 && privateCount === 0) {
       container.innerHTML = '<p class="empty">No upcoming events</p>';
       return;
     }
 
-    container.innerHTML = events.map(event => renderEventCard(event)).join('');
+    // Store events for modal access
+    events.forEach(e => contentStore.events[e.id] = e);
+
+    html += events.map(event => renderEventCard(event)).join('');
+    container.innerHTML = html;
+    detectThumbnailAspectRatios();
   } catch (err) {
     container.innerHTML = '<p class="error">Could not load events</p>';
   }
@@ -215,12 +363,40 @@ async function loadHomeAnnouncements() {
   try {
     const announcements = await CoterieAPI.getAnnouncements({ limit: 3 });
 
-    if (announcements.length === 0) {
+    // Try to get private count separately so it doesn't break main content
+    let privateCount = 0;
+    try {
+      const result = await CoterieAPI.getPrivateAnnouncementCount();
+      privateCount = result?.count || 0;
+    } catch (e) {
+      // Endpoint may not exist yet, ignore
+    }
+
+    let html = '';
+
+    // Show members-only teaser if there are private announcements
+    if (privateCount > 0) {
+      const plural = privateCount === 1 ? '' : 's';
+      html += `
+        <div class="members-only-teaser">
+          <span class="lock-icon">&#128274;</span>
+          <span>${privateCount} members-only announcement${plural}</span>
+          <a href="${window.COTERIE_PORTAL_URL || ''}/portal/announcements">Log in to view</a>
+        </div>
+      `;
+    }
+
+    if (announcements.length === 0 && privateCount === 0) {
       container.innerHTML = '<p class="empty">No recent announcements</p>';
       return;
     }
 
-    container.innerHTML = announcements.map(a => renderAnnouncementCard(a)).join('');
+    // Store announcements for modal access
+    announcements.forEach(a => contentStore.announcements[a.id] = a);
+
+    html += announcements.map(a => renderAnnouncementCard(a)).join('');
+    container.innerHTML = html;
+    detectThumbnailAspectRatios();
   } catch (err) {
     container.innerHTML = '<p class="error">Could not load announcements</p>';
   }
@@ -238,12 +414,40 @@ async function loadAllAnnouncements() {
   try {
     const announcements = await CoterieAPI.getAnnouncements({ limit: 50 });
 
-    if (announcements.length === 0) {
+    // Try to get private count separately
+    let privateCount = 0;
+    try {
+      const result = await CoterieAPI.getPrivateAnnouncementCount();
+      privateCount = result?.count || 0;
+    } catch (e) {
+      // Endpoint may not exist yet, ignore
+    }
+
+    let html = '';
+
+    // Show members-only teaser if there are private announcements
+    if (privateCount > 0) {
+      const plural = privateCount === 1 ? '' : 's';
+      html += `
+        <div class="members-only-teaser">
+          <span class="lock-icon">&#128274;</span>
+          <span>${privateCount} members-only announcement${plural}</span>
+          <a href="${window.COTERIE_PORTAL_URL || ''}/portal/announcements">Log in to view</a>
+        </div>
+      `;
+    }
+
+    if (announcements.length === 0 && privateCount === 0) {
       container.innerHTML = '<p class="empty">No announcements</p>';
       return;
     }
 
-    container.innerHTML = announcements.map(a => renderAnnouncementCardFull(a)).join('');
+    // Store announcements for modal access
+    announcements.forEach(a => contentStore.announcements[a.id] = a);
+
+    html += announcements.map(a => renderAnnouncementCardFull(a)).join('');
+    container.innerHTML = html;
+    detectThumbnailAspectRatios();
   } catch (err) {
     container.innerHTML = '<p class="error">Could not load announcements</p>';
   }
@@ -260,15 +464,21 @@ function renderAnnouncementCardFull(announcement) {
   const typeBadge = announcement.announcement_type
     ? `<span class="badge">${escapeHtml(announcement.announcement_type)}</span>`
     : '';
+  const imageHtml = announcement.image_url
+    ? `<div class="card-thumb-large"><img src="${getImageUrl(announcement.image_url)}" alt=""></div>`
+    : '';
 
   return `
-    <div class="card ${announcement.featured ? 'card-featured' : ''}">
-      <div class="card-header">
-        <h4 class="card-title">${escapeHtml(announcement.title)}</h4>
-        <div class="card-badges">${featuredBadge}${typeBadge}</div>
+    <div class="card card-clickable ${announcement.featured ? 'card-featured' : ''}" onclick="showAnnouncementModal('${announcement.id}')">
+      ${imageHtml}
+      <div class="card-body">
+        <div class="card-header">
+          <h4 class="card-title">${escapeHtml(announcement.title)}</h4>
+          <div class="card-badges">${featuredBadge}${typeBadge}</div>
+        </div>
+        <div class="card-meta">${date}</div>
+        ${announcement.content ? `<div class="card-description">${escapeHtml(truncate(announcement.content, 250))}</div>` : ''}
       </div>
-      <div class="card-meta">${date}</div>
-      ${announcement.content ? `<div class="card-content">${escapeHtml(announcement.content)}</div>` : ''}
     </div>
   `;
 }
@@ -360,17 +570,37 @@ function initSignupForm() {
  * Render an event card
  */
 function renderEventCard(event) {
+  // Handle private events that appear as placeholders
+  if (event.private) {
+    const date = formatEventDate(event.start_time);
+    return `
+      <div class="card card-private">
+        <h4 class="card-title"><span class="lock-icon">&#128274;</span> Members Only Event</h4>
+        <div class="card-meta">
+          <span class="event-date">${date}</span>
+        </div>
+        <p class="card-description"><a href="${window.COTERIE_PORTAL_URL || ''}/portal">Log in to view details</a></p>
+      </div>
+    `;
+  }
+
   const date = formatEventDate(event.start_time);
   const location = event.location ? `<span class="event-location">${escapeHtml(event.location)}</span>` : '';
+  const imageHtml = event.image_url
+    ? `<div class="card-thumb"><img src="${getImageUrl(event.image_url)}" alt=""></div>`
+    : '';
 
   return `
-    <div class="card">
-      <h4 class="card-title">${escapeHtml(event.title)}</h4>
-      <div class="card-meta">
-        <span class="event-date">${date}</span>
-        ${location}
+    <div class="card card-clickable" onclick="showEventModal('${event.id}')">
+      ${imageHtml}
+      <div class="card-body">
+        <h4 class="card-title">${escapeHtml(event.title)}</h4>
+        <div class="card-meta">
+          <span class="event-date">${date}</span>
+          ${location}
+        </div>
+        ${event.description ? `<p class="card-description">${escapeHtml(truncate(event.description, 100))}</p>` : ''}
       </div>
-      ${event.description ? `<p class="card-description">${escapeHtml(truncate(event.description, 150))}</p>` : ''}
     </div>
   `;
 }
@@ -380,12 +610,18 @@ function renderEventCard(event) {
  */
 function renderAnnouncementCard(announcement) {
   const date = formatDate(announcement.published_at);
+  const imageHtml = announcement.image_url
+    ? `<div class="card-thumb"><img src="${getImageUrl(announcement.image_url)}" alt=""></div>`
+    : '';
 
   return `
-    <div class="card">
-      <h4 class="card-title">${escapeHtml(announcement.title)}</h4>
-      <div class="card-meta">${date}</div>
-      ${announcement.content ? `<p class="card-description">${escapeHtml(truncate(announcement.content, 200))}</p>` : ''}
+    <div class="card card-clickable" onclick="showAnnouncementModal('${announcement.id}')">
+      ${imageHtml}
+      <div class="card-body">
+        <h4 class="card-title">${escapeHtml(announcement.title)}</h4>
+        <div class="card-meta">${date}</div>
+        ${announcement.content ? `<p class="card-description">${escapeHtml(truncate(announcement.content, 120))}</p>` : ''}
+      </div>
     </div>
   `;
 }
@@ -444,6 +680,31 @@ function truncate(str, length) {
 }
 
 /**
+ * Detect image aspect ratio and add appropriate class to thumbnail container
+ * Call this after rendering cards with images
+ */
+function detectThumbnailAspectRatios() {
+  document.querySelectorAll('.card-thumb img, .card-thumb-large img').forEach(img => {
+    if (img.complete) {
+      applyAspectClass(img);
+    } else {
+      img.addEventListener('load', () => applyAspectClass(img));
+    }
+  });
+}
+
+function applyAspectClass(img) {
+  const container = img.parentElement;
+  if (!container) return;
+
+  const ratio = img.naturalWidth / img.naturalHeight;
+  // If image is tall (portrait), add class
+  if (ratio < 0.9) {
+    container.classList.add('thumb-tall');
+  }
+}
+
+/**
  * Escape HTML to prevent XSS
  */
 function escapeHtml(str) {
@@ -451,4 +712,19 @@ function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
+}
+
+/**
+ * Get full image URL from image path
+ * Handles both relative paths (uploads/...) and absolute URLs (https://...)
+ */
+function getImageUrl(imagePath) {
+  if (!imagePath) return '';
+  // If it's already a full URL, return as-is
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    return imagePath;
+  }
+  // Otherwise, prepend the API URL
+  const baseUrl = window.COTERIE_API_URL || '';
+  return `${baseUrl}/${imagePath}`;
 }
