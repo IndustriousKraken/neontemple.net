@@ -1,0 +1,8 @@
+{
+  "name": "neontemple-net",
+  "private": true,
+  "description": "Tooling for the neontemple.net Hugo theme assets (JS tests).",
+  "scripts": {
+    "test": "node --test \"themes/terminal/assets/js/*.test.js\""
+  }
+}
