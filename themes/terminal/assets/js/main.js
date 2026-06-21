@@ -68,7 +68,7 @@ function showEventModal(eventId) {
 
   const imageContainer = document.getElementById('modal-image-container');
   if (event.image_url) {
-    const imgUrl = getImageUrl(event.image_url);
+    const imgUrl = escapeAttr(getImageUrl(event.image_url));
     imageContainer.innerHTML = `<a href="${imgUrl}" target="_blank" title="View full image"><img src="${imgUrl}" alt="" class="modal-image"></a>`;
   } else {
     imageContainer.innerHTML = '';
@@ -104,7 +104,7 @@ function showAnnouncementModal(announcementId) {
 
   const imageContainer = document.getElementById('modal-image-container');
   if (announcement.image_url) {
-    const imgUrl = getImageUrl(announcement.image_url);
+    const imgUrl = escapeAttr(getImageUrl(announcement.image_url));
     imageContainer.innerHTML = `<a href="${imgUrl}" target="_blank" title="View full image"><img src="${imgUrl}" alt="" class="modal-image"></a>`;
   } else {
     imageContainer.innerHTML = '';
@@ -303,7 +303,12 @@ function renderFeaturedBanner(banner) {
     // Hero banner with background image
     const imgUrl = getImageUrl(current.image_url);
     banner.className = 'featured-hero';
-    banner.style.backgroundImage = `url(${imgUrl})`;
+    // This is a CSS url() context, not HTML — HTML-entity encoding would not be
+    // decoded here. Quote the URL and drop it entirely (defense in depth) if it
+    // contains any character that could break out of url("..."): quotes,
+    // parentheses, backslashes, or whitespace.
+    const cssSafeUrl = /["'()\\\s]/.test(imgUrl) ? '' : imgUrl;
+    banner.style.backgroundImage = cssSafeUrl ? `url("${cssSafeUrl}")` : '';
     banner.innerHTML = `
       <div class="featured-hero-overlay"></div>
       <div class="featured-hero-content" onclick="showAnnouncementModal('${current.id}')">
@@ -514,7 +519,7 @@ function renderAnnouncementCardFull(announcement) {
     ? `<span class="badge">${escapeHtml(announcement.announcement_type)}</span>`
     : '';
   const imageHtml = announcement.image_url
-    ? `<div class="card-thumb-large"><img src="${getImageUrl(announcement.image_url)}" alt=""></div>`
+    ? `<div class="card-thumb-large"><img src="${escapeAttr(getImageUrl(announcement.image_url))}" alt=""></div>`
     : '';
 
   return `
@@ -636,7 +641,7 @@ function renderEventCard(event) {
   const date = formatEventDate(event.start_time);
   const location = event.location ? `<span class="event-location">${escapeHtml(event.location)}</span>` : '';
   const imageHtml = event.image_url
-    ? `<div class="card-thumb"><img src="${getImageUrl(event.image_url)}" alt=""></div>`
+    ? `<div class="card-thumb"><img src="${escapeAttr(getImageUrl(event.image_url))}" alt=""></div>`
     : '';
 
   return `
@@ -660,7 +665,7 @@ function renderEventCard(event) {
 function renderAnnouncementCard(announcement) {
   const date = formatDate(announcement.published_at);
   const imageHtml = announcement.image_url
-    ? `<div class="card-thumb"><img src="${getImageUrl(announcement.image_url)}" alt=""></div>`
+    ? `<div class="card-thumb"><img src="${escapeAttr(getImageUrl(announcement.image_url))}" alt=""></div>`
     : '';
 
   return `
@@ -761,6 +766,25 @@ function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
+}
+
+/**
+ * Escape a value for safe insertion into an HTML attribute context.
+ *
+ * Unlike escapeHtml — which round-trips through textContent and therefore leaves
+ * `"` and `'` intact — this also escapes the quote characters, so the value
+ * cannot terminate the attribute it sits in or introduce additional markup,
+ * attributes, or event handlers. Use this for any untrusted value placed inside
+ * an HTML attribute (href, src, etc.). Do NOT use escapeHtml for attributes.
+ */
+function escapeAttr(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 /**
