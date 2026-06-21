@@ -45,9 +45,15 @@ this change establishes that contract.
   `innerHTML` (the two modals and the three card renderers).
 - Apply the same encoding to the `image_url` used for the featured banner's
   `background-image` value (`main.js:306`) as defense in depth.
+- Add a `escapeJsAttr` encoder and apply it to the API-sourced `id` interpolated
+  into the five inline `onclick="showXModal('${id}')"` handlers — a
+  JS-string-inside-an-HTML-attribute context where `escapeAttr` is unsafe
+  (its `&#39;` is HTML-decoded back to `'` before the handler runs). The encoding
+  round-trips the `id` so it remains a valid `contentStore` lookup key.
 - Establish a `content-rendering` capability requirement: every untrusted API
   field value inserted into the DOM is encoded for its output context, including
-  URL/`image_url` values placed in attributes.
+  URL/`image_url` values placed in attributes and `id` values placed in inline
+  event-handler attributes.
 
 ## Impact
 

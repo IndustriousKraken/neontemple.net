@@ -1,5 +1,8 @@
 /**
- * Regression tests for the image_url attribute-escaping fix in main.js.
+ * Regression tests for the API-sourced output-encoding fixes in main.js:
+ *   - image_url interpolated into src/href HTML attributes (escapeAttr), and
+ *   - event/announcement ids interpolated into inline onclick handlers
+ *     (escapeJsAttr — a JS-string-inside-an-HTML-attribute context).
  *
  * main.js is a browser script: it registers DOMContentLoaded / alpine:init
  * listeners and defines its rendering helpers as top-level functions. As in
@@ -121,4 +124,111 @@ test('escapeAttr encodes every attribute-significant character', () => {
   assert.equal(sandbox.escapeAttr(''), '');
   assert.equal(sandbox.escapeAttr(null), '');
   assert.equal(sandbox.escapeAttr(undefined), '');
+});
+
+// --- onclick id escaping (escapeJsAttr) -------------------------------------
+//
+// The five `onclick="showXModal('${id}')"` sites embed an API-sourced id in a
+// single-quoted JS string that itself lives inside a double-quoted HTML
+// attribute. The id is also the contentStore lookup key, so the encoding must
+// (a) prevent breakout and (b) round-trip the value exactly. escapeAttr alone
+// is NOT enough here: it entity-encodes `'` to `&#39;`, which the HTML parser
+// decodes back to `'` before the JS engine runs — reopening the breakout.
+
+// Value of the onclick="..." attribute. escapeJsAttr encodes `"` to &quot;, so
+// the next literal double-quote is the true attribute boundary.
+function onclickAttrValue(html) {
+  const m = html.match(/onclick="([^"]*)"/);
+  return m ? m[1] : null;
+}
+
+// Decode the entities a browser decodes in an attribute value before handing the
+// result to the JS engine. Decode &amp; last so we don't double-decode.
+function htmlDecode(s) {
+  return s
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&');
+}
+
+// Reproduce the full browser pipeline for an inline handler: extract the onclick
+// source, HTML-decode it (HTML parser), then execute it (JS engine) in a sandbox
+// whose showXModal stubs record their argument. A correctly-encoded id results
+// in exactly one call with the original id and no injected side effect.
+function runInlineHandler(html) {
+  const onclick = onclickAttrValue(html);
+  assert.ok(onclick !== null, 'an onclick="..." handler is present');
+  const calls = [];
+  const ctx = {
+    showEventModal: (a) => calls.push(a),
+    showAnnouncementModal: (a) => calls.push(a),
+    window: {},
+  };
+  vm.createContext(ctx);
+  vm.runInContext(htmlDecode(onclick), ctx, { filename: 'onclick-handler' });
+  return { calls, window: ctx.window };
+}
+
+const ONCLICK_BREAKOUT_ID = "1');window.__xss=1;//";
+
+test('onclick_id_with_quote_breakout_is_neutralized', () => {
+  const sandbox = loadMain();
+  const html = sandbox.renderEventCard({
+    id: ONCLICK_BREAKOUT_ID,
+    title: 'CTF Night',
+    start_time: '2026-06-20T19:30:00Z',
+  });
+
+  // Run the handler exactly as a browser would (HTML-decode, then execute).
+  const { calls, window } = runInlineHandler(html);
+
+  // The injected `;window.__xss=1` never executed: it stayed inside the JS
+  // string literal because the apostrophe was JS-escaped (\') and survived
+  // HTML decoding as an escaped quote.
+  assert.equal(window.__xss, undefined, 'no injected statement executed from the id');
+  // The handler fired once with the original id intact (so the contentStore
+  // lookup still works).
+  assert.deepEqual(calls, [ONCLICK_BREAKOUT_ID], 'handler called once with the exact id');
+});
+
+test('onclick_id_normal_value_round_trips', () => {
+  const sandbox = loadMain();
+  const html = sandbox.renderAnnouncementCard({
+    id: 'abc-123',
+    title: 'Hello',
+    published_at: '2026-06-20T19:30:00Z',
+  });
+
+  assert.ok(
+    html.includes(`onclick="showAnnouncementModal('abc-123')"`),
+    'a plain id passes through escapeJsAttr unchanged'
+  );
+  const { calls, window } = runInlineHandler(html);
+  assert.equal(window.__xss, undefined);
+  assert.deepEqual(calls, ['abc-123'], 'handler called once with the exact id');
+});
+
+test('escapeJsAttr neutralizes breakout while preserving the value', () => {
+  const { escapeJsAttr } = loadMain();
+
+  // Apostrophe is JS-escaped (survives HTML decoding as an escaped quote), NOT
+  // entity-encoded — entity-encoding would decode back to ' and reopen the hole.
+  assert.equal(escapeJsAttr("a'b"), "a\\'b");
+  // Backslash is doubled so it cannot escape our escaping.
+  assert.equal(escapeJsAttr('a\\b'), 'a\\\\b');
+  // Attribute-breaking / HTML-significant characters are entity-encoded.
+  assert.equal(escapeJsAttr('&'), '&amp;');
+  assert.equal(escapeJsAttr('"'), '&quot;');
+  assert.equal(escapeJsAttr('<'), '&lt;');
+  assert.equal(escapeJsAttr('>'), '&gt;');
+  // Raw line terminators (illegal inside a JS string literal) are escaped.
+  assert.equal(escapeJsAttr('a\nb'), 'a\\nb');
+  assert.equal(escapeJsAttr('a\rb'), 'a\\rb');
+  // Falsy / nullish input yields the empty string; numeric ids stringify.
+  assert.equal(escapeJsAttr(''), '');
+  assert.equal(escapeJsAttr(null), '');
+  assert.equal(escapeJsAttr(undefined), '');
+  assert.equal(escapeJsAttr(42), '42');
 });

@@ -311,7 +311,7 @@ function renderFeaturedBanner(banner) {
     banner.style.backgroundImage = cssSafeUrl ? `url("${cssSafeUrl}")` : '';
     banner.innerHTML = `
       <div class="featured-hero-overlay"></div>
-      <div class="featured-hero-content" onclick="showAnnouncementModal('${current.id}')">
+      <div class="featured-hero-content" onclick="showAnnouncementModal('${escapeJsAttr(current.id)}')">
         <div class="featured-hero-badge">Featured</div>
         <h2 class="featured-hero-title">${escapeHtml(current.title)}</h2>
         ${current.content ? `<p class="featured-hero-preview">${escapeHtml(truncate(current.content, 120))}</p>` : ''}
@@ -323,7 +323,7 @@ function renderFeaturedBanner(banner) {
     // Text-only banner (no image)
     banner.className = 'featured-banner';
     banner.innerHTML = `
-      <div class="featured-banner-content" onclick="showAnnouncementModal('${current.id}')">
+      <div class="featured-banner-content" onclick="showAnnouncementModal('${escapeJsAttr(current.id)}')">
         <span class="featured-banner-badge">Featured</span>
         <span class="featured-banner-title">${escapeHtml(current.title)}</span>
         ${current.content ? `<span class="featured-banner-preview"> - ${escapeHtml(truncate(current.content, 80))}</span>` : ''}
@@ -523,7 +523,7 @@ function renderAnnouncementCardFull(announcement) {
     : '';
 
   return `
-    <div class="card card-clickable ${announcement.featured ? 'card-featured' : ''}" onclick="showAnnouncementModal('${announcement.id}')">
+    <div class="card card-clickable ${announcement.featured ? 'card-featured' : ''}" onclick="showAnnouncementModal('${escapeJsAttr(announcement.id)}')">
       ${imageHtml}
       <div class="card-body">
         <div class="card-header">
@@ -645,7 +645,7 @@ function renderEventCard(event) {
     : '';
 
   return `
-    <div class="card card-clickable" onclick="showEventModal('${event.id}')">
+    <div class="card card-clickable" onclick="showEventModal('${escapeJsAttr(event.id)}')">
       ${imageHtml}
       <div class="card-body">
         <h4 class="card-title">${escapeHtml(event.title)}</h4>
@@ -669,7 +669,7 @@ function renderAnnouncementCard(announcement) {
     : '';
 
   return `
-    <div class="card card-clickable" onclick="showAnnouncementModal('${announcement.id}')">
+    <div class="card card-clickable" onclick="showAnnouncementModal('${escapeJsAttr(announcement.id)}')">
       ${imageHtml}
       <div class="card-body">
         <h4 class="card-title">${escapeHtml(announcement.title)}</h4>
@@ -785,6 +785,35 @@ function escapeAttr(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+/**
+ * Escape a value for a single-quoted JS string literal that itself sits inside a
+ * double-quoted HTML attribute — e.g. onclick="showEventModal('VALUE')".
+ *
+ * This context is decoded twice: the HTML parser decodes entities in the
+ * attribute value first, then the JS engine parses the result as code. So
+ * escapeHtml/escapeAttr are NOT sufficient here — entity-encoding the apostrophe
+ * to &#39; would just be decoded back to ' before the JS runs, reopening the
+ * breakout. We therefore (1) JS-escape the characters that would break the
+ * single-quoted string after HTML decoding (backslash, apostrophe, and raw line
+ * terminators), then (2) HTML-escape the characters that would otherwise break
+ * the surrounding double-quoted attribute or be reinterpreted by the HTML parser
+ * (&, ", <, >). The apostrophe is deliberately JS-escaped (\') rather than
+ * entity-encoded. The value round-trips to the original string, so it remains a
+ * valid contentStore lookup key.
+ */
+function escapeJsAttr(value) {
+  if (value == null) return '';
+  return String(value)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\r/g, '\\r')
+    .replace(/\n/g, '\\n')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 /**
