@@ -352,3 +352,46 @@ test('featured_banner_renders_well_formed_image_url', async () => {
     'url("https://cdn.example.com/a.jpg")'
   );
 });
+
+// --- image-path resolution (getImageUrl) -------------------------------------
+//
+// getImageUrl resolves an API-supplied image path to the URL every event /
+// announcement image renders from. It branches three ways: a falsy path → '';
+// a value already starting with http://|https:// → returned unchanged; any
+// other (relative) path → joined to the configured API base URL
+// (window.COTERIE_API_URL, or '' when unset) with a single '/'. The encoding
+// tests above only exercise the absolute-URL branch indirectly; these assert
+// the resolution invariant directly. getImageUrl is a top-level function in
+// main.js, so loadMain() exposes it on the sandbox like the other render
+// helpers, and it reads window.COTERIE_API_URL at call time (not load time).
+
+test('getImageUrl_returns_absolute_url_unchanged', () => {
+  const { getImageUrl } = loadMain();
+
+  // Both schemes pass through verbatim — the base URL is never prepended.
+  assert.equal(getImageUrl('https://cdn.example.com/a.jpg'), 'https://cdn.example.com/a.jpg');
+  assert.equal(getImageUrl('http://cdn.example.com/a.jpg'), 'http://cdn.example.com/a.jpg');
+});
+
+test('getImageUrl_joins_relative_path_to_configured_base', () => {
+  const sandbox = loadMain();
+  // getImageUrl reads window.COTERIE_API_URL at call time, so setting it on the
+  // sandbox after load is enough.
+  sandbox.window.COTERIE_API_URL = 'https://api.test';
+
+  assert.equal(sandbox.getImageUrl('uploads/a.jpg'), 'https://api.test/uploads/a.jpg');
+});
+
+test('getImageUrl_roots_relative_path_when_base_unset', () => {
+  const { getImageUrl } = loadMain();
+  // No window.COTERIE_API_URL on the sandbox → base is '', so the path is
+  // rooted at the single joining '/'.
+  assert.equal(getImageUrl('uploads/a.jpg'), '/uploads/a.jpg');
+});
+
+test('getImageUrl_returns_empty_string_for_falsy_input', () => {
+  const { getImageUrl } = loadMain();
+
+  assert.equal(getImageUrl(''), '');
+  assert.equal(getImageUrl(null), '');
+});
