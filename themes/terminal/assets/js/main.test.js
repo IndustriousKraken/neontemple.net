@@ -232,3 +232,123 @@ test('escapeJsAttr neutralizes breakout while preserving the value', () => {
   assert.equal(escapeJsAttr(undefined), '');
   assert.equal(escapeJsAttr(42), '42');
 });
+
+// --- image_url in a CSS url() context (renderFeaturedBanner) -----------------
+//
+// renderFeaturedBanner is the one site that inserts an image_url into a CSS
+// `background-image: url("...")` value. HTML-entity encoding is NOT decoded
+// inside a CSS url(), so escapeAttr would be useless here; instead the code
+// DROPS the URL entirely when it contains any character that could break out of
+// url("...") — quotes, parentheses, backslashes, or whitespace — and otherwise
+// wraps it as url("<url>"). The src/href (escapeAttr) and onclick (escapeJsAttr)
+// contexts are covered above; this covers the third context the canon names,
+// "inline `style` `url(...)`".
+//
+// renderFeaturedBanner is reached through initAnnouncementBanner, so we drive it
+// end-to-end: load main.js in a sandbox whose CoterieAPI.getAnnouncements yields
+// a single featured announcement (one item avoids starting the rotation timer),
+// then await initAnnouncementBanner() and inspect the fake banner's style.
+function loadMainBanner(announcements) {
+  // Same innerHTML/textContent emulation as loadMain, for document.createElement
+  // (escapeHtml) used while rendering the banner's text content.
+  const createElement = () => {
+    let html = '';
+    return {
+      set textContent(value) {
+        html = String(value)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+      },
+      get innerHTML() {
+        return html;
+      },
+    };
+  };
+
+  // Fake #announcement-banner element: a mutable `style` object, no-op classList
+  // add/remove, an innerHTML setter/getter, a settable className, and a no-op
+  // addEventListener.
+  let bannerHtml = '';
+  const banner = {
+    style: {},
+    className: '',
+    classList: { add() {}, remove() {} },
+    set innerHTML(value) {
+      bannerHtml = String(value);
+    },
+    get innerHTML() {
+      return bannerHtml;
+    },
+    addEventListener() {},
+  };
+
+  const sandbox = {
+    document: {
+      addEventListener() {},
+      createElement,
+      getElementById(id) {
+        return id === 'announcement-banner' ? banner : null;
+      },
+    },
+    window: {},
+    console,
+    // main.js calls the bare global CoterieAPI.getAnnouncements (defined in
+    // api.js, which we don't load); stub it to yield the supplied announcements.
+    CoterieAPI: {
+      getAnnouncements: async () => announcements,
+    },
+    // One featured item won't start rotation, but stub these so any code path is
+    // inert in the sandbox.
+    setInterval() {},
+    clearInterval() {},
+  };
+
+  const code = fs.readFileSync(path.join(__dirname, 'main.js'), 'utf8');
+  vm.createContext(sandbox);
+  vm.runInContext(code, sandbox, { filename: 'main.js' });
+  sandbox.banner = banner;
+  return sandbox;
+}
+
+test('featured_banner_drops_image_url_with_css_breakout', async () => {
+  const sandbox = loadMainBanner([
+    {
+      id: 'feat-1',
+      title: 'Featured',
+      featured: true,
+      // Contains ", ), and whitespace — any one of which could break out of
+      // url("..."), so the whole value must be dropped.
+      image_url: 'https://x") ; background:url(evil) "',
+    },
+  ]);
+
+  await sandbox.initAnnouncementBanner();
+
+  // The URL was dropped, so no attacker-controlled value reaches the rendered
+  // banner's CSS: background-image is empty.
+  assert.equal(
+    sandbox.banner.style.backgroundImage,
+    '',
+    'a CSS url() breakout payload must be dropped, leaving an empty background-image'
+  );
+});
+
+test('featured_banner_renders_well_formed_image_url', async () => {
+  const sandbox = loadMainBanner([
+    {
+      id: 'feat-2',
+      title: 'Featured',
+      featured: true,
+      image_url: 'https://cdn.example.com/a.jpg',
+    },
+  ]);
+
+  await sandbox.initAnnouncementBanner();
+
+  // A clean URL (no url()-significant characters) is wrapped as url("<url>").
+  assert.equal(
+    sandbox.banner.style.backgroundImage,
+    'url("https://cdn.example.com/a.jpg")'
+  );
+});
