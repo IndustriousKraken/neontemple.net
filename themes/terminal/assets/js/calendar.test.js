@@ -153,3 +153,112 @@ test('loadEvents_sets_error_state_when_getEvents_rejects', async () => {
   assert.equal(component.error, 'Could not load events', 'error state surfaced for a failed load');
   assert.equal(component.loading, false, 'loading flag cleared by the finally branch');
 });
+
+// --- searchFilteredEvents: the calendar's case-insensitive, multi-field filter ---
+
+test('searchFilteredEvents_returns_all_events_for_empty_or_whitespace_search', () => {
+  const { component } = makeComponent();
+  component.events = [...VALID_EVENTS];
+
+  // An empty term imposes no filter: every event is returned.
+  component.search = '';
+  assert.deepEqual(
+    component.searchFilteredEvents.map(e => e.id).sort(),
+    [1, 2],
+    'empty search term returns all events',
+  );
+
+  // A whitespace-only term trims to empty, so it must behave the same way.
+  component.search = '   ';
+  assert.deepEqual(
+    component.searchFilteredEvents.map(e => e.id).sort(),
+    [1, 2],
+    'whitespace-only search term returns all events',
+  );
+});
+
+test('searchFilteredEvents_matches_title_case_insensitively', () => {
+  const { component } = makeComponent();
+  component.events = [...VALID_EVENTS]; // event 2 is titled 'CTF Night'
+
+  // A lower-case term must match the mixed-case title.
+  component.search = 'ctf';
+  const ids = component.searchFilteredEvents.map(e => e.id);
+  assert.deepEqual(ids, [2], 'lower-case term matches mixed-case title only');
+});
+
+test('searchFilteredEvents_matches_description_location_and_type', () => {
+  const { component } = makeComponent();
+  // Each event carries a distinct, identifying value in a different field so a
+  // match can only come from that field. Titles share no terms with the probes.
+  component.events = [
+    { id: 10, title: 'Alpha', start_time: '2026-06-10T18:00:00Z', description: 'Soldering workshop' },
+    { id: 11, title: 'Bravo', start_time: '2026-06-11T18:00:00Z', location: 'The Vault' },
+    { id: 12, title: 'Charlie', start_time: '2026-06-12T18:00:00Z', event_type: 'Workshop' },
+  ];
+
+  // description match, term in a different case than the stored value.
+  component.search = 'SOLDERING';
+  assert.deepEqual(
+    component.searchFilteredEvents.map(e => e.id),
+    [10],
+    'matches on description, case-insensitively',
+  );
+
+  // location match.
+  component.search = 'vault';
+  assert.deepEqual(
+    component.searchFilteredEvents.map(e => e.id),
+    [11],
+    'matches on location, case-insensitively',
+  );
+
+  // event_type match.
+  component.search = 'workshop';
+  assert.deepEqual(
+    component.searchFilteredEvents.map(e => e.id).sort(),
+    [10, 12],
+    'matches on event_type (12) and on the description containing "workshop" (10)',
+  );
+});
+
+test('searchFilteredEvents_returns_empty_for_no_match', () => {
+  const { component } = makeComponent();
+  component.events = [
+    { id: 10, title: 'Alpha', start_time: '2026-06-10T18:00:00Z', description: 'Soldering workshop', location: 'The Vault', event_type: 'Workshop' },
+    { id: 11, title: 'Bravo', start_time: '2026-06-11T18:00:00Z' },
+  ];
+
+  // A term that appears in none of the searchable fields filters everything out.
+  component.search = 'zzzznotpresent';
+  assert.deepEqual(
+    component.searchFilteredEvents,
+    [],
+    'a term matching no searchable field returns an empty list',
+  );
+});
+
+test('searchFilteredEvents_tolerates_events_missing_optional_fields', () => {
+  const { component } = makeComponent();
+  // An event with only a title — the optional description/location/event_type
+  // fields are absent, so the getter's null-guards must keep it from throwing.
+  const TITLE_ONLY = { id: 20, title: 'Keysigning', start_time: '2026-06-15T18:00:00Z' };
+  component.events = [TITLE_ONLY];
+
+  // A non-empty, non-matching term must complete without throwing and exclude
+  // the event (the missing fields cannot match).
+  let result;
+  assert.doesNotThrow(() => {
+    component.search = 'nomatch';
+    result = component.searchFilteredEvents;
+  }, 'filtering an event missing optional fields must not throw');
+  assert.deepEqual(result, [], 'title-only event is excluded when the term does not match its title');
+
+  // The same event is included when the term matches its title.
+  component.search = 'keysigning';
+  assert.deepEqual(
+    component.searchFilteredEvents.map(e => e.id),
+    [20],
+    'title-only event is included when the term matches its title',
+  );
+});
