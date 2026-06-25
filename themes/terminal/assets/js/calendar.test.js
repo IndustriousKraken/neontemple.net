@@ -135,3 +135,21 @@ test('loadEvents filters out events with an unparseable start_time', async () =>
   assert.deepEqual(ids, [1, 2], 'invalid records dropped before reaching this.events');
   assert.equal(component.error, null, 'no error surfaced for a tolerated bad record');
 });
+
+test('loadEvents_sets_error_state_when_getEvents_rejects', async () => {
+  const { component, sandbox } = makeComponent();
+  // Inject a failing API stub onto the sandbox the component closes over.
+  // A rejecting getEvents simulates the backend being unreachable.
+  sandbox.CoterieAPI = {
+    async getEvents() {
+      throw new Error('down');
+    },
+  };
+
+  // The failure must be caught inside loadEvents: the call resolves rather
+  // than rejecting, so a regression that let the rejection escape is caught.
+  await assert.doesNotReject(() => component.loadEvents());
+
+  assert.equal(component.error, 'Could not load events', 'error state surfaced for a failed load');
+  assert.equal(component.loading, false, 'loading flag cleared by the finally branch');
+});
