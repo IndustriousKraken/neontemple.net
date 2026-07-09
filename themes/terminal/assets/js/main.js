@@ -139,8 +139,10 @@ document.addEventListener('alpine:init', () => {
     currentVideo: 0,
     loading: true,
     error: null,
-    // Live streams playlist (UULV prefix) for channel UCv865b5CV4mtKw2YJ8uqU_A
-    playlistId: 'UULVv865b5CV4mtKw2YJ8uqU_A',
+    // The Neon Temple YouTube channel (@theneontemple). channel_id feed returns
+    // the latest uploads; swap to playlist_id=UULVjO4E92PJnYuazpZfllS98Q for
+    // live-streams-only.
+    channelId: 'UCjO4E92PJnYuazpZfllS98Q',
 
     async init() {
       await this.fetchVideos();
@@ -150,47 +152,22 @@ document.addEventListener('alpine:init', () => {
       this.loading = true;
       this.error = null;
 
-      // Try multiple CORS proxies in case one is down
-      const rssUrl = `https://www.youtube.com/feeds/videos.xml?playlist_id=${this.playlistId}`;
-      const proxies = [
-        `https://corsproxy.io/?${encodeURIComponent(rssUrl)}`,
-        `https://api.allorigins.win/raw?url=${encodeURIComponent(rssUrl)}`,
-      ];
-
-      let xml = null;
-      for (const proxyUrl of proxies) {
-        try {
-          const response = await fetch(proxyUrl);
-          if (response.ok) {
-            xml = await response.text();
-            if (xml && xml.includes('<entry>')) break;
-          }
-        } catch (e) {
-          console.log('Proxy failed:', proxyUrl);
-        }
-      }
-
       try {
-        if (!xml || !xml.includes('<entry>')) throw new Error('All proxies failed');
+        // Fetch YouTube's RSS feed through our own same-origin Caddy proxy
+        // (/yt-feed -> www.youtube.com) so we don't depend on flaky public CORS
+        // proxies. See the `handle /yt-feed` block in the Caddyfile.
+        const response = await fetch(`/yt-feed?channel_id=${this.channelId}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const xml = await response.text();
 
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(xml, 'application/xml');
-
-        const entries = doc.querySelectorAll('entry');
-        this.videos = Array.from(entries).slice(0, 5).map(entry => {
-          const videoId = entry.querySelector('yt\\:videoId, videoId')?.textContent;
-          const title = entry.querySelector('title')?.textContent;
-          return { id: videoId, title: title || 'Video' };
-        }).filter(v => v.id);
-
-        if (this.videos.length === 0) {
-          throw new Error('No videos found');
-        }
-        this.error = null;
+        const doc = new DOMParser().parseFromString(xml, 'application/xml');
+        this.videos = Array.from(doc.querySelectorAll('entry')).slice(0, 5).map(entry => ({
+          id: entry.querySelector('yt\\:videoId, videoId')?.textContent,
+          title: entry.querySelector('title')?.textContent || 'Video',
+        })).filter(v => v.id);
       } catch (err) {
+        // On failure, show nothing - the template falls back to the YouTube button.
         console.error('Failed to load YouTube videos:', err);
-        // On failure, show nothing - just link to YouTube
-        this.error = null;
         this.videos = [];
       } finally {
         this.loading = false;
