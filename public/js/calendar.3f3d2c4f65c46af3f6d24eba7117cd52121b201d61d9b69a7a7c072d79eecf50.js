@@ -112,7 +112,11 @@ document.addEventListener('alpine:init', () => {
       this.error = null;
 
       try {
-        this.events = await CoterieAPI.getEvents({ limit: 100 });
+        const events = await CoterieAPI.getEvents({ limit: 100 });
+        // The API is a trust boundary: drop any event whose start_time does not
+        // parse to a valid date so invalid records never reach the grid or list
+        // views (where formatDateKey would otherwise throw on an Invalid Date).
+        this.events = events.filter(e => !Number.isNaN(new Date(e.start_time).getTime()));
         // Store events for modal access
         this.events.forEach(e => {
           if (window.contentStore) {
@@ -186,6 +190,10 @@ document.addEventListener('alpine:init', () => {
 
     // Helpers
     formatDateKey(date) {
+      // An invalid Date (e.g. from a missing/malformed start_time) makes
+      // toISOString() throw RangeError. Return a sentinel instead so a single
+      // bad record cannot abort the calendarDays render pass.
+      if (Number.isNaN(date.getTime())) return null;
       return date.toISOString().split('T')[0];
     },
 

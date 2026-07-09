@@ -1,4 +1,4 @@
-baseURL = 'https://neontemple.net/'
+baseURL = 'https://theneontemple.com/'
 languageCode = 'en-us'
 title = 'Neon Temple'
 theme = 'terminal'
@@ -6,11 +6,11 @@ relativeURLs = true
 
 [params]
   description = 'A cybersecurity guild in Tampa Bay. Not a cult!'
-  coterieAPI = 'https://coterie.stage.grc.red'
-  portalURL = 'https://coterie.stage.grc.red/login'
+  coterieAPI = 'https://coterie.theneontemple.com'
+  portalURL = 'https://coterie.theneontemple.com/login'
 
   # Social links
-  email = 'info@neontemple.net'
+  email = 'info@theneontemple.com'
   facebook = ''
   twitter = ''
   youtube = ''
@@ -48,7 +48,7 @@ relativeURLs = true
       external = true
   [[menus.main]]
     name = 'Login'
-    url = 'https://coterie.stage.grc.red/login'
+    url = 'https://coterie.theneontemple.com/login'
     weight = 7
 
 [markup]
