@@ -1,18 +1,164 @@
-<!doctype html><html lang=en-us><head><meta name=generator content="Hugo 0.164.0"><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>Neon Temple</title><meta name=description content="A cybersecurity guild in Tampa Bay. Not a cult!"><link rel=stylesheet href=./css/style.e2ee2ae80db0b8409f60cdd3c9f5a052402d939a91b8cb66ad86861eac1ee469.css><script>window.COTERIE_API_URL="https://coterie.theneontemple.com",window.COTERIE_PORTAL_URL="https://coterie.theneontemple.com/login"</script></head><body><div class=container><header class=site-header><div class=header-content><a href=./ class=site-title><span class=prompt>></span> Neon Temple</a><nav class=main-nav><a href=./>Home</a>
-<a href=./calendar/>Calendar</a>
-<a href=./announcements/>Announcements</a>
-<a href=./about/>About</a>
-<a href=./join/>Join</a>
-<a href=https://www.ransomwear.store/collections/vault/Vault+vault target=_blank rel=noopener>Swag</a>
-<a href=https://coterie.theneontemple.com/login>Login</a></nav></div></header><div id=announcement-banner class="announcement-banner hidden"></div><main class=site-main><div data-page=home x-data=videoSlider()><section class=hero><h1 class=hero-title>Neon Temple</h1><p class=hero-tagline>A cybersecurity guild in Tampa Bay. Not a cult!</p></section><section class=video-slider-section><div x-show=loading class=loading>Loading videos...</div><div x-show="!loading && videos.length === 0" class=video-fallback><a href=https://www.youtube.com/@theneontemple/streams target=_blank rel=noopener class=btn>Watch our videos on YouTube &rarr;</a></div><div x-show="!loading && videos.length > 0" x-cloak class=video-slider><div class=video-main><div class=youtube-embed><iframe :src="videos[currentVideo] ? 'https://www.youtube-nocookie.com/embed/' + videos[currentVideo].id + '?rel=0' : ''" frameborder=0 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div></div><div class=video-selector><template x-for="(video, index) in videos" :key=video.id><button class=video-thumb :class="{ 'active': currentVideo === index }" @click="currentVideo = index">
-<img :src="'https://img.youtube.com/vi/' + video.id + '/mqdefault.jpg'" :alt=video.title>
-<span class=video-thumb-title x-text=video.title></span>
-</button>
-</template><a href=https://www.youtube.com/@theneontemple/streams target=_blank rel=noopener class=video-more>More on YouTube &rarr;</a></div></div></section><p>Red teamers, blue teamers, purple teamers, and the occasional chaos agent. We work at startups, enterprises, and places we can&rsquo;t talk about.</p><p>We meet weekly. The content is substantive: live exploitation, defense techniques, tool deep-dives, career strategy. If you&rsquo;ve been to other &ldquo;security meetups&rdquo; and left wondering when the actual security would start, this is different.</p><p>Members look out for each other. When someone&rsquo;s ready to move or gets caught in a layoff, the network activates. We&rsquo;re plugged into the companies our members own and work for. That&rsquo;s not a pitch—it&rsquo;s just what happens when you put this many practitioners in a room together every week.</p><section class="section social-links-section"><div class=section-header><h2 class=section-title>Connect With Us</h2></div><div class=social-links-grid><a href=https://x.com/TheNeonTemple target=_blank rel=noopener class=social-link-card><span class=social-link-name>X / Twitter</span>
-<span class=social-link-handle>@TheNeonTemple</span>
-</a><a href=https://www.linkedin.com/company/theneontemple/ target=_blank rel=noopener class=social-link-card><span class=social-link-name>LinkedIn</span>
-<span class=social-link-handle>Neon Temple</span>
-</a><a href=https://www.instagram.com/theneontemple/ target=_blank rel=noopener class=social-link-card><span class=social-link-name>Instagram</span>
-<span class=social-link-handle>@theneontemple</span>
-</a><a href=https://www.facebook.com/TheNeonTemple target=_blank rel=noopener class=social-link-card><span class=social-link-name>Facebook</span>
-<span class=social-link-handle>Neon Temple</span></a></div></section><section class=section><div class=section-header><h2 class=section-title>Upcoming Events</h2><a href=./calendar/ class=section-link>View all &rarr;</a></div><div id=home-events class=card-list><p class=loading>Loading events</p></div></section><section class=section><div class=section-header><h2 class=section-title>Announcements</h2></div><div id=home-announcements class=card-list><p class=loading>Loading announcements</p></div></section></div><script>document.body.dataset.page="home"</script></main><footer class=site-footer><div class=footer-content><div class=footer-links><a href=mailto:info@theneontemple.com>Email</a></div><div class=footer-copy><span class=prompt>></span> 2026 Neon Temple</div></div></footer></div><script src=./js/api.2a2b92a381ff1d269de99b36946f25b039d06b6a6e1f187fa96986764a19bec1.js></script><script src=./js/calendar.3f3d2c4f65c46af3f6d24eba7117cd52121b201d61d9b69a7a7c072d79eecf50.js></script><script defer src=https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js></script><script src=./js/main.ffc22762d4b904adad42a106dad324798ece5afd285272686e0c9a00cb598609.js></script></body></html>
+<!DOCTYPE html>
+<html lang="en-us">
+<head>
+	<meta name="generator" content="Hugo 0.164.0">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Neon Temple</title>
+  <meta name="description" content="A cybersecurity guild in Tampa Bay. Not a cult!">
+  <link rel="stylesheet" href="./css/style.e2ee2ae80db0b8409f60cdd3c9f5a052402d939a91b8cb66ad86861eac1ee469.css">
+  <script>
+    window.COTERIE_API_URL = 'https:\/\/coterie.theneontemple.com';
+    window.COTERIE_PORTAL_URL = 'https:\/\/coterie.theneontemple.com\/login';
+  </script>
+</head>
+<body>
+  <div class="container">
+    <header class="site-header">
+      <div class="header-content">
+        <a href="./" class="site-title">
+          <span class="prompt">&gt;</span> Neon Temple
+        </a>
+        <nav class="main-nav">
+          
+            <a href="./" class="">Home</a>
+          
+            <a href="./calendar/" class="">Calendar</a>
+          
+            <a href="./announcements/" class="">Announcements</a>
+          
+            <a href="./about/" class="">About</a>
+          
+            <a href="./join/" class="">Join</a>
+          
+            <a href="https://www.ransomwear.store/collections/vault/Vault&#43;vault" class="" target="_blank" rel="noopener">Swag</a>
+          
+            <a href="https://coterie.theneontemple.com/login" class="">Login</a>
+          
+        </nav>
+      </div>
+    </header>
+
+    <div id="announcement-banner" class="announcement-banner hidden"></div>
+
+    <main class="site-main">
+      
+<div data-page="home" x-data="videoSlider()">
+
+<section class="hero">
+  <h1 class="hero-title">Neon Temple</h1>
+  <p class="hero-tagline">A cybersecurity guild in Tampa Bay. Not a cult!</p>
+</section>
+
+
+<section class="video-slider-section">
+  <div x-show="loading" class="loading">Loading videos...</div>
+  <div x-show="!loading && videos.length === 0" class="video-fallback">
+    <a href="https://www.youtube.com/@theneontemple/streams" target="_blank" rel="noopener" class="btn">
+      Watch our videos on YouTube &rarr;
+    </a>
+  </div>
+  <div x-show="!loading && videos.length > 0" x-cloak class="video-slider">
+    <div class="video-main">
+      <div class="youtube-embed">
+        <iframe
+          :src="videos[currentVideo] ? 'https://www.youtube-nocookie.com/embed/' + videos[currentVideo].id + '?rel=0' : ''"
+          frameborder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen>
+        </iframe>
+      </div>
+    </div>
+    <div class="video-selector">
+      <template x-for="(video, index) in videos" :key="video.id">
+        <button
+          class="video-thumb"
+          :class="{ 'active': currentVideo === index }"
+          @click="currentVideo = index"
+        >
+          <img :src="'https://img.youtube.com/vi/' + video.id + '/mqdefault.jpg'" :alt="video.title">
+          <span class="video-thumb-title" x-text="video.title"></span>
+        </button>
+      </template>
+      <a href="https://www.youtube.com/@theneontemple/streams" target="_blank" rel="noopener" class="video-more">
+        More on YouTube &rarr;
+      </a>
+    </div>
+  </div>
+</section>
+
+<p>Red teamers, blue teamers, purple teamers, and the occasional chaos agent. We work at startups, enterprises, and places we can&rsquo;t talk about.</p>
+<p>We meet weekly. The content is substantive: live exploitation, defense techniques, tool deep-dives, career strategy. If you&rsquo;ve been to other &ldquo;security meetups&rdquo; and left wondering when the actual security would start, this is different.</p>
+<p>Members look out for each other. When someone&rsquo;s ready to move or gets caught in a layoff, the network activates. We&rsquo;re plugged into the companies our members own and work for. That&rsquo;s not a pitch—it&rsquo;s just what happens when you put this many practitioners in a room together every week.</p>
+
+
+<section class="section social-links-section">
+  <div class="section-header">
+    <h2 class="section-title">Connect With Us</h2>
+  </div>
+  <div class="social-links-grid">
+    <a href="https://x.com/TheNeonTemple" target="_blank" rel="noopener" class="social-link-card">
+      <span class="social-link-name">X / Twitter</span>
+      <span class="social-link-handle">@TheNeonTemple</span>
+    </a>
+    <a href="https://www.linkedin.com/company/theneontemple/" target="_blank" rel="noopener" class="social-link-card">
+      <span class="social-link-name">LinkedIn</span>
+      <span class="social-link-handle">Neon Temple</span>
+    </a>
+    <a href="https://www.instagram.com/theneontemple/" target="_blank" rel="noopener" class="social-link-card">
+      <span class="social-link-name">Instagram</span>
+      <span class="social-link-handle">@theneontemple</span>
+    </a>
+    <a href="https://www.facebook.com/TheNeonTemple" target="_blank" rel="noopener" class="social-link-card">
+      <span class="social-link-name">Facebook</span>
+      <span class="social-link-handle">Neon Temple</span>
+    </a>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-header">
+    <h2 class="section-title">Upcoming Events</h2>
+    <a href="./calendar/" class="section-link">View all &rarr;</a>
+  </div>
+  <div id="home-events" class="card-list">
+    <p class="loading">Loading events</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-header">
+    <h2 class="section-title">Announcements</h2>
+  </div>
+  <div id="home-announcements" class="card-list">
+    <p class="loading">Loading announcements</p>
+  </div>
+</section>
+
+</div>
+<script>document.body.dataset.page = 'home';</script>
+
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-content">
+        
+        <div class="footer-links">
+          <a href="mailto:info@theneontemple.com">Email</a>
+          
+          
+          
+          
+        </div>
+        <div class="footer-copy">
+          <span class="prompt">&gt;</span> 2026 Neon Temple
+        </div>
+      </div>
+    </footer>
+  </div>
+  <script src="./js/api.dacd719c6ba96306d571ef32219d14a3bc305c1fb8eb3cb989060f9ac38a5aba.js"></script>
+  <script src="./js/calendar.3f3d2c4f65c46af3f6d24eba7117cd52121b201d61d9b69a7a7c072d79eecf50.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="./js/main.411be798dd007861141f3f2c2d3e9fbfa0f0480094c7dfc4b0dfc4cc3232dda4.js"></script>
+</body>
+</html>

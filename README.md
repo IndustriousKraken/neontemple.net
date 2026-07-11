@@ -8,7 +8,9 @@ events, announcements, and member/admin login links.
 
 Prerequisites:
 
-- **Hugo** — to build and serve the site.
+- **Hugo ≥ 0.146 (extended)** — to build and serve the site. Older versions
+  (e.g. Debian's packaged 0.131) fail the theme's layout lookup and silently
+  emit EMPTY pages — check `hugo` output for a "not compatible" warning.
 - **Node.js** — to run the theme's JS unit tests.
 
 Commands:
