@@ -395,3 +395,33 @@ test('getImageUrl_returns_empty_string_for_falsy_input', () => {
   assert.equal(getImageUrl(''), '');
   assert.equal(getImageUrl(null), '');
 });
+
+// --- membership type option labels (join form) --------------------------------
+
+test('formatMembershipOption_renders_fee_and_period_variants', () => {
+  const { formatMembershipOption } = loadMain();
+
+  assert.equal(
+    formatMembershipOption({ name: 'Member', fee_cents: 4500, billing_period: 'monthly' }),
+    'Member — $45/month',
+    'whole-dollar monthly fee drops the cents',
+  );
+  assert.equal(
+    formatMembershipOption({ name: 'Patron', fee_cents: 48000, billing_period: 'yearly' }),
+    'Patron — $480/year',
+  );
+  assert.equal(
+    formatMembershipOption({ name: 'Founder', fee_cents: 50000, billing_period: 'lifetime' }),
+    'Founder — $500 lifetime',
+  );
+  assert.equal(
+    formatMembershipOption({ name: 'Student', fee_cents: 1250, billing_period: 'monthly' }),
+    'Student — $12.50/month',
+    'non-whole fees keep two decimals',
+  );
+  assert.equal(
+    formatMembershipOption({ name: 'Guest', fee_cents: 0, billing_period: 'monthly' }),
+    'Guest — Free',
+    'zero fee renders Free regardless of period',
+  );
+});

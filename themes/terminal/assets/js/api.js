@@ -75,6 +75,15 @@ const CoterieAPI = {
   },
 
   /**
+   * Get active membership types (slug, name, description, fee_cents,
+   * currency, billing_period) for the join form.
+   * @returns {Promise<Array>} List of membership types
+   */
+  async getMembershipTypes() {
+    return this.fetch('/public/membership-types');
+  },
+
+  /**
    * Submit membership signup
    * @param {Object} data - Signup form data
    * @returns {Promise<Object>} Signup result

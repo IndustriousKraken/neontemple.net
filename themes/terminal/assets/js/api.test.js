@@ -183,3 +183,12 @@ test('get_announcements_appends_only_supplied_params', async () => {
   await bare.CoterieAPI.getAnnouncements();
   assert.deepEqual(bare.calls, ['/public/announcements'], 'no params means bare endpoint');
 });
+
+// --- membership types (join form) --------------------------------------------
+
+test('get_membership_types_requests_bare_endpoint', async () => {
+  const { CoterieAPI, calls } = loadAPI();
+  const result = await CoterieAPI.getMembershipTypes();
+  assert.deepEqual(calls, ['/public/membership-types'], 'bare endpoint, no query');
+  assert.deepEqual(result, [], 'resolves to the parsed JSON body');
+});

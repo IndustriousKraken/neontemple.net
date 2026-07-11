@@ -553,11 +553,62 @@ async function loadCalendarEvents() {
 }
 
 /**
+ * Option label for a membership type from GET /public/membership-types:
+ * "Name — $45/month", "Name — $500 lifetime", "Name — Free". Whole-dollar
+ * fees drop the cents; anything else keeps two decimals.
+ */
+function formatMembershipOption(type) {
+  if (!type.fee_cents) return `${type.name} — Free`;
+  const dollars = type.fee_cents / 100;
+  const fee = Number.isInteger(dollars) ? `$${dollars}` : `$${dollars.toFixed(2)}`;
+  switch (type.billing_period) {
+    case 'monthly':
+      return `${type.name} — ${fee}/month`;
+    case 'yearly':
+      return `${type.name} — ${fee}/year`;
+    case 'lifetime':
+      return `${type.name} — ${fee} lifetime`;
+    default:
+      return `${type.name} — ${fee}/${type.billing_period}`;
+  }
+}
+
+/**
+ * Fill the join form's membership-type select from the API. On failure
+ * or an empty list, hide the field entirely — signup then omits the
+ * slug and Coterie applies the org-default type (degrade, don't break).
+ */
+async function populateMembershipTypes(form) {
+  const select = form.querySelector('#membership_type_slug');
+  if (!select) return;
+
+  try {
+    const types = await CoterieAPI.getMembershipTypes();
+    if (!types.length) throw new Error('no membership types configured');
+
+    select.innerHTML = '';
+    for (const type of types) {
+      const option = document.createElement('option');
+      option.value = type.slug;
+      option.textContent = formatMembershipOption(type);
+      select.appendChild(option);
+    }
+  } catch (err) {
+    console.error('Could not load membership types:', err);
+    const group = select.closest('.form-group') || select;
+    group.style.display = 'none';
+    select.value = '';
+  }
+}
+
+/**
  * Initialize signup form handling
  */
 function initSignupForm() {
   const form = document.getElementById('signup-form');
   if (!form) return;
+
+  populateMembershipTypes(form);
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -569,9 +620,21 @@ function initSignupForm() {
 
     const formData = new FormData(form);
     const data = Object.fromEntries(formData);
+    // An empty selection (types failed to load / field hidden) must be
+    // omitted, not sent as an empty slug — Coterie 400s on unknown slugs
+    // and falls back to the org default only when the field is absent.
+    if (!data.membership_type_slug) delete data.membership_type_slug;
 
     try {
-      await CoterieAPI.signup(data);
+      const result = await CoterieAPI.signup(data);
+
+      // Pay-at-signup: the backend returns a Stripe Checkout URL when
+      // the org collects payment during signup. Completing that
+      // checkout is what activates the membership — send them there.
+      if (result && result.checkout_url) {
+        window.location.href = result.checkout_url;
+        return;
+      }
 
       // Show success message
       form.innerHTML = `

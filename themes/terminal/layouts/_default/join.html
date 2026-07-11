@@ -25,13 +25,16 @@
 
   <div class="form-group">
     <label class="form-label" for="password">Password</label>
-    <input type="password" id="password" name="password" class="form-input" required autocomplete="new-password" minlength="8">
+    <!-- minlength matches Coterie's validate_password minimum (10). -->
+    <input type="password" id="password" name="password" class="form-input" required autocomplete="new-password" minlength="10">
   </div>
 
   <div class="form-group">
-    <label class="form-label" for="membership_type">Membership Type</label>
-    <select id="membership_type" name="membership_type" class="form-input">
-      <option value="standard">Standard</option>
+    <label class="form-label" for="membership_type_slug">Membership Type</label>
+    <!-- Populated from GET /public/membership-types at load; hidden if
+         the listing fails (signup then uses the org-default type). -->
+    <select id="membership_type_slug" name="membership_type_slug" class="form-input">
+      <option value="">Loading membership types&hellip;</option>
     </select>
   </div>
 
