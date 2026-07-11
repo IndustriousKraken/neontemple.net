@@ -192,3 +192,27 @@ test('get_membership_types_requests_bare_endpoint', async () => {
   assert.deepEqual(calls, ['/public/membership-types'], 'bare endpoint, no query');
   assert.deepEqual(result, [], 'resolves to the parsed JSON body');
 });
+
+test('fetch_surfaces_coterie_error_key_on_non_ok_response', async () => {
+  // Coterie's AppError body is { "error": "..." } (not "message") — a
+  // duplicate-signup 409 must surface its actionable text, not "HTTP 409".
+  const { CoterieAPI, SandboxError } = loadAPI({
+    fetchImpl: async () => ({
+      ok: false,
+      status: 409,
+      json: async () => ({ error: 'Registration failed: an account with this information already exists' }),
+    }),
+  });
+
+  await assert.rejects(
+    () => CoterieAPI.fetch('/public/signup'),
+    (err) => {
+      assert.ok(err instanceof SandboxError);
+      assert.equal(
+        err.message,
+        'Registration failed: an account with this information already exists',
+      );
+      return true;
+    },
+  );
+});
