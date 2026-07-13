@@ -1,0 +1,6 @@
+[Unit]
+Description=Refresh cached YouTube feed for theneontemple.com
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/yt-feed-refresh.sh
