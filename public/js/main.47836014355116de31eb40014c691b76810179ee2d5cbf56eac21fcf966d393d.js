@@ -14,6 +14,8 @@ document.addEventListener('DOMContentLoaded', () => {
   createModal();
   initAnnouncementBanner();
   initPageSpecific();
+  // Deep-link support: open an announcement when the URL is edited/pasted while on the page.
+  window.addEventListener('hashchange', openAnnouncementFromHash);
 });
 
 /**
@@ -114,8 +116,14 @@ function showAnnouncementModal(announcementId) {
   document.getElementById('modal-meta').innerHTML = `
     <p><span class="meta-label">Published:</span> ${dateStr}</p>
     ${announcement.announcement_type ? `<p><span class="meta-label">Type:</span> ${escapeHtml(announcement.announcement_type)}</p>` : ''}
+    <p><button type="button" class="btn btn-outline" onclick="copyAnnouncementLink(this)">Copy link</button></p>
   `;
   document.getElementById('modal-content').textContent = announcement.content || 'No content available.';
+
+  // Reflect the open announcement in the URL so it can be linked/shared directly.
+  if (announcement.id != null) {
+    history.replaceState(null, '', '#announcement-' + encodeURIComponent(announcement.id));
+  }
 
   document.getElementById('detail-modal').classList.add('active');
   document.body.style.overflow = 'hidden';
@@ -127,6 +135,38 @@ function showAnnouncementModal(announcementId) {
 function closeModal() {
   document.getElementById('detail-modal').classList.remove('active');
   document.body.style.overflow = '';
+  // Drop the announcement anchor so the URL reflects that nothing is open.
+  if (location.hash.startsWith('#announcement-')) {
+    history.replaceState(null, '', location.pathname + location.search);
+  }
+}
+
+/**
+ * Copy the current announcement's direct link to the clipboard.
+ */
+function copyAnnouncementLink(btn) {
+  // Always share the announcements-page URL — it loads the list and auto-opens,
+  // even when the modal was opened from the home-page banner.
+  const m = location.hash.match(/^#announcement-(.+)$/);
+  const url = m ? location.origin + '/announcements/#announcement-' + m[1] : location.href;
+  navigator.clipboard?.writeText(url).then(() => {
+    const label = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = label; }, 1500);
+  });
+}
+
+/**
+ * If the URL points at an announcement (#announcement-<id>), open its modal.
+ * No-op if the id isn't among the loaded announcements.
+ */
+function openAnnouncementFromHash() {
+  const m = location.hash.match(/^#announcement-(.+)$/);
+  if (!m) return;
+  const id = decodeURIComponent(m[1]);
+  const card = document.getElementById('announcement-' + id);
+  if (card) card.scrollIntoView({ block: 'center' });
+  showAnnouncementModal(id);
 }
 
 /**
@@ -479,6 +519,7 @@ async function loadAllAnnouncements() {
     html += announcements.map(a => renderAnnouncementCardFull(a)).join('');
     container.innerHTML = html;
     detectThumbnailAspectRatios();
+    openAnnouncementFromHash();
   } catch (err) {
     container.innerHTML = '<p class="error">Could not load announcements</p>';
   }
@@ -500,7 +541,7 @@ function renderAnnouncementCardFull(announcement) {
     : '';
 
   return `
-    <div class="card card-clickable ${announcement.featured ? 'card-featured' : ''}" onclick="showAnnouncementModal('${escapeJsAttr(announcement.id)}')">
+    <div id="announcement-${escapeAttr(announcement.id)}" class="card card-clickable ${announcement.featured ? 'card-featured' : ''}" onclick="showAnnouncementModal('${escapeJsAttr(announcement.id)}')">
       ${imageHtml}
       <div class="card-body">
         <div class="card-header">
@@ -553,11 +594,62 @@ async function loadCalendarEvents() {
 }
 
 /**
+ * Option label for a membership type from GET /public/membership-types:
+ * "Name — $45/month", "Name — $500 lifetime", "Name — Free". Whole-dollar
+ * fees drop the cents; anything else keeps two decimals.
+ */
+function formatMembershipOption(type) {
+  if (!type.fee_cents) return `${type.name} — Free`;
+  const dollars = type.fee_cents / 100;
+  const fee = Number.isInteger(dollars) ? `$${dollars}` : `$${dollars.toFixed(2)}`;
+  switch (type.billing_period) {
+    case 'monthly':
+      return `${type.name} — ${fee}/month`;
+    case 'yearly':
+      return `${type.name} — ${fee}/year`;
+    case 'lifetime':
+      return `${type.name} — ${fee} lifetime`;
+    default:
+      return `${type.name} — ${fee}/${type.billing_period}`;
+  }
+}
+
+/**
+ * Fill the join form's membership-type select from the API. On failure
+ * or an empty list, hide the field entirely — signup then omits the
+ * slug and Coterie applies the org-default type (degrade, don't break).
+ */
+async function populateMembershipTypes(form) {
+  const select = form.querySelector('#membership_type_slug');
+  if (!select) return;
+
+  try {
+    const types = await CoterieAPI.getMembershipTypes();
+    if (!types.length) throw new Error('no membership types configured');
+
+    select.innerHTML = '';
+    for (const type of types) {
+      const option = document.createElement('option');
+      option.value = type.slug;
+      option.textContent = formatMembershipOption(type);
+      select.appendChild(option);
+    }
+  } catch (err) {
+    console.error('Could not load membership types:', err);
+    const group = select.closest('.form-group') || select;
+    group.style.display = 'none';
+    select.value = '';
+  }
+}
+
+/**
  * Initialize signup form handling
  */
 function initSignupForm() {
   const form = document.getElementById('signup-form');
   if (!form) return;
+
+  populateMembershipTypes(form);
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -569,9 +661,21 @@ function initSignupForm() {
 
     const formData = new FormData(form);
     const data = Object.fromEntries(formData);
+    // An empty selection (types failed to load / field hidden) must be
+    // omitted, not sent as an empty slug — Coterie 400s on unknown slugs
+    // and falls back to the org default only when the field is absent.
+    if (!data.membership_type_slug) delete data.membership_type_slug;
 
     try {
-      await CoterieAPI.signup(data);
+      const result = await CoterieAPI.signup(data);
+
+      // Pay-at-signup: the backend returns a Stripe Checkout URL when
+      // the org collects payment during signup. Completing that
+      // checkout is what activates the membership — send them there.
+      if (result && result.checkout_url) {
+        window.location.href = result.checkout_url;
+        return;
+      }
 
       // Show success message
       form.innerHTML = `
