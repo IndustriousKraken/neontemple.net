@@ -145,11 +145,7 @@ function closeModal() {
  * Copy the current announcement's direct link to the clipboard.
  */
 function copyAnnouncementLink(btn) {
-  // Always share the announcements-page URL — it loads the list and auto-opens,
-  // even when the modal was opened from the home-page banner.
-  const m = location.hash.match(/^#announcement-(.+)$/);
-  const url = m ? location.origin + '/announcements/#announcement-' + m[1] : location.href;
-  navigator.clipboard?.writeText(url).then(() => {
+  navigator.clipboard?.writeText(location.href).then(() => {
     const label = btn.textContent;
     btn.textContent = 'Copied!';
     setTimeout(() => { btn.textContent = label; }, 1500);
