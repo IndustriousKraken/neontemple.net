@@ -56,16 +56,23 @@ function showEventModal(eventId) {
   const event = contentStore.events[eventId];
   if (!event) return;
 
+  // Render in the event's own IANA zone (from the API), not the viewer's browser
+  // zone: a Thu 7pm EST event is Fri 00:00 UTC, so any other zone can show the
+  // wrong day and time.
+  const tz = event.timezone || undefined;
   const date = new Date(event.start_time);
   const dateStr = date.toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',
     day: 'numeric',
     year: 'numeric',
+    timeZone: tz,
   });
   const timeStr = date.toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
+    timeZone: tz,
+    timeZoneName: 'short',
   });
 
   const imageContainer = document.getElementById('modal-image-container');
@@ -707,7 +714,7 @@ function initSignupForm() {
 function renderEventCard(event) {
   // Handle private events that appear as placeholders
   if (event.private) {
-    const date = formatEventDate(event.start_time);
+    const date = formatEventDate(event.start_time, event.timezone);
     return `
       <div class="card card-private">
         <h4 class="card-title"><span class="lock-icon">&#128274;</span> Members Only Event</h4>
@@ -719,7 +726,7 @@ function renderEventCard(event) {
     `;
   }
 
-  const date = formatEventDate(event.start_time);
+  const date = formatEventDate(event.start_time, event.timezone);
   const location = event.location ? `<span class="event-location">${escapeHtml(event.location)}</span>` : '';
   const imageHtml = event.image_url
     ? `<div class="card-thumb"><img src="${escapeAttr(getImageUrl(event.image_url))}" alt=""></div>`
@@ -769,7 +776,7 @@ function groupEventsByMonth(events) {
 
   for (const event of events) {
     const date = new Date(event.start_time);
-    const month = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const month = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: event.timezone || undefined });
 
     if (!grouped[month]) {
       grouped[month] = [];
@@ -783,7 +790,7 @@ function groupEventsByMonth(events) {
 /**
  * Format event date/time
  */
-function formatEventDate(isoString) {
+function formatEventDate(isoString, tz) {
   const date = new Date(isoString);
   return date.toLocaleDateString('en-US', {
     weekday: 'short',
@@ -791,6 +798,7 @@ function formatEventDate(isoString) {
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
+    timeZone: tz || undefined,
   });
 }
 

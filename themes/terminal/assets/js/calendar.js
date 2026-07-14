@@ -3,6 +3,24 @@
  * Grid view with search/filter for events
  */
 
+// YYYY-MM-DD of an event's start instant, evaluated in the event's own IANA
+// timezone (from the API). Bucketing by the UTC date (toISOString) instead
+// shifts evening events across midnight: a Thu 7pm EST event is 2025-11-21T00:00Z
+// — Friday in UTC — and would wrongly land in the Friday cell. Falls back to the
+// runtime-local zone when an event carries no timezone.
+function eventDayKey(event) {
+  const date = new Date(event.start_time);
+  if (Number.isNaN(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: event.timezone || undefined,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const get = (t) => parts.find((p) => p.type === t).value;
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
 document.addEventListener('alpine:init', () => {
   Alpine.data('calendar', () => ({
     // State
@@ -60,7 +78,7 @@ document.addEventListener('alpine:init', () => {
       for (let day = 1; day <= this.daysInMonth; day++) {
         const date = new Date(this.currentYear, this.currentMonth, day);
         const dateStr = this.formatDateKey(date);
-        const dayEvents = this.events.filter(e => this.formatDateKey(new Date(e.start_time)) === dateStr);
+        const dayEvents = this.events.filter(e => eventDayKey(e) === dateStr);
 
         days.push({
           number: day,
@@ -99,7 +117,7 @@ document.addEventListener('alpine:init', () => {
       if (!this.selectedDate) return [];
       const dateStr = this.formatDateKey(this.selectedDate);
       // Use unfiltered events since grid view is unfiltered
-      return this.events.filter(e => this.formatDateKey(new Date(e.start_time)) === dateStr);
+      return this.events.filter(e => eventDayKey(e) === dateStr);
     },
 
     // Methods
@@ -202,20 +220,22 @@ document.addEventListener('alpine:init', () => {
       return date.toDateString() === today.toDateString();
     },
 
-    formatEventTime(isoString) {
+    formatEventTime(isoString, tz) {
       const date = new Date(isoString);
       return date.toLocaleTimeString('en-US', {
         hour: 'numeric',
-        minute: '2-digit'
+        minute: '2-digit',
+        timeZone: tz || undefined
       });
     },
 
-    formatEventDate(isoString) {
+    formatEventDate(isoString, tz) {
       const date = new Date(isoString);
       return date.toLocaleDateString('en-US', {
         weekday: 'short',
         month: 'short',
-        day: 'numeric'
+        day: 'numeric',
+        timeZone: tz || undefined
       });
     },
 

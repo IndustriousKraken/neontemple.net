@@ -25,7 +25,7 @@
           <img x-show="event.image_url" :src="getImageUrl(event.image_url)" alt="" class="search-result-thumb">
           <div class="search-result-content">
             <div class="search-result-title" x-text="event.title"></div>
-            <div class="search-result-meta" x-text="formatEventDate(event.start_time) + ' at ' + formatEventTime(event.start_time)"></div>
+            <div class="search-result-meta" x-text="formatEventDate(event.start_time, event.timezone) + ' at ' + formatEventTime(event.start_time, event.timezone)"></div>
           </div>
         </div>
       </template>
@@ -133,7 +133,7 @@
           <div class="card-body">
             <h4 class="card-title" x-text="event.title"></h4>
             <div class="card-meta">
-              <span class="event-date" x-text="formatEventTime(event.start_time)"></span>
+              <span class="event-date" x-text="formatEventTime(event.start_time, event.timezone)"></span>
               <span x-show="event.location" class="event-location" x-text="event.location"></span>
             </div>
             <p x-show="event.description" class="card-description" x-text="event.description.substring(0, 120) + (event.description.length > 120 ? '...' : '')"></p>
@@ -160,7 +160,7 @@
         <div class="card-body">
           <h4 class="card-title" x-text="event.title"></h4>
           <div class="card-meta">
-            <span class="event-date" x-text="formatEventDate(event.start_time) + ' at ' + formatEventTime(event.start_time)"></span>
+            <span class="event-date" x-text="formatEventDate(event.start_time, event.timezone) + ' at ' + formatEventTime(event.start_time, event.timezone)"></span>
             <span x-show="event.location" class="event-location" x-text="event.location"></span>
           </div>
           <p x-show="event.description" class="card-description" x-text="event.description.substring(0, 150) + (event.description.length > 150 ? '...' : '')"></p>

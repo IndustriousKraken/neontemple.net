@@ -120,6 +120,29 @@ test('formatDateKey returns null for an invalid date', () => {
   assert.equal(component.formatDateKey(new Date('2026-06-10T18:00:00Z')), '2026-06-10');
 });
 
+test('eventDayKey buckets evening events on their Eastern calendar day across DST', () => {
+  const { sandbox } = loadCalendar();
+  // Thu 7pm EST → 2025-11-21T00:00Z, which is *Friday* in UTC. The old code
+  // bucketed by the UTC date (toISOString) and put it on Friday; it must bucket
+  // on Thu Nov 20. This is the reported "November/December show on Friday" bug.
+  assert.equal(
+    sandbox.eventDayKey({ start_time: '2025-11-21T00:00:00Z', timezone: 'America/New_York' }),
+    '2025-11-20',
+  );
+  // Thu 7pm EDT → 2025-08-21T23:00Z, still Thursday in UTC — summer months were
+  // already correct and must stay on Thursday.
+  assert.equal(
+    sandbox.eventDayKey({ start_time: '2025-08-21T23:00:00Z', timezone: 'America/New_York' }),
+    '2025-08-21',
+  );
+  // Invalid start_time → null, matching formatDateKey's guard so a bad record
+  // cannot abort the render pass.
+  assert.equal(
+    sandbox.eventDayKey({ start_time: 'not-a-date', timezone: 'America/New_York' }),
+    null,
+  );
+});
+
 test('loadEvents filters out events with an unparseable start_time', async () => {
   const { component, sandbox } = makeComponent();
   // Inject the API stub onto the sandbox the component closes over.
