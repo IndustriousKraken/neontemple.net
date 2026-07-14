@@ -1,0 +1,7 @@
+# The Neon Temple / Coterie security contact.
+Contact: mailto:bugs@industriouskraken.com
+Contact: https://github.com/IndustriousKraken/coterie/security/advisories/new
+Policy: https://github.com/IndustriousKraken/coterie/blob/master/SECURITY.md
+Acknowledgments: https://github.com/IndustriousKraken/coterie/blob/master/SECURITY.md#acknowledgments
+Preferred-Languages: en
+Expires: 2027-07-13T00:00:00Z
