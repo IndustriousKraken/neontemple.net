@@ -127,9 +127,9 @@ function showAnnouncementModal(announcementId) {
   `;
   // content_html is server-sanitized by Coterie (ammonia whitelist — safe tag
   // subset, no raw HTML/script/event handlers, only http/https/mailto schemes),
-  // so the full body renders it as-is here. Card/banner previews also consume
-  // it, but only via truncateHtml (inline tags only, re-emitted bare). Fall
-  // back to escaped text when the field is absent (older API).
+  // so it's the one API value we insert as HTML, and only here in the full-body
+  // modal. Fall back to escaped text when the field is absent (older API). Card
+  // previews keep rendering the raw `content` as text — never content_html.
   const modalContent = document.getElementById('modal-content');
   if (announcement.content_html) {
     modalContent.innerHTML = announcement.content_html;
@@ -348,7 +348,7 @@ function renderFeaturedBanner(banner) {
       <div class="featured-hero-content" onclick="showAnnouncementModal('${escapeJsAttr(current.id)}')">
         <div class="featured-hero-badge">Featured</div>
         <h2 class="featured-hero-title">${escapeHtml(current.title)}</h2>
-        ${current.content ? `<p class="featured-hero-preview">${previewHtml(current, 120)}</p>` : ''}
+        ${current.content ? `<p class="featured-hero-preview">${escapeHtml(truncate(current.content, 120))}</p>` : ''}
         <span class="featured-hero-cta">Click to read more</span>
       </div>
       ${navHtml}
@@ -360,7 +360,7 @@ function renderFeaturedBanner(banner) {
       <div class="featured-banner-content" onclick="showAnnouncementModal('${escapeJsAttr(current.id)}')">
         <span class="featured-banner-badge">Featured</span>
         <span class="featured-banner-title">${escapeHtml(current.title)}</span>
-        ${current.content ? `<span class="featured-banner-preview"> - ${previewHtml(current, 80)}</span>` : ''}
+        ${current.content ? `<span class="featured-banner-preview"> - ${escapeHtml(truncate(current.content, 80))}</span>` : ''}
       </div>
       ${navHtml}
     `;
@@ -566,7 +566,7 @@ function renderAnnouncementCardFull(announcement) {
           <div class="card-badges">${featuredBadge}${typeBadge}</div>
         </div>
         <div class="card-meta">${date}</div>
-        ${announcement.content ? `<div class="card-description">${previewHtml(announcement, 250)}</div>` : ''}
+        ${announcement.content ? `<div class="card-description">${escapeHtml(truncate(announcement.content, 250))}</div>` : ''}
       </div>
     </div>
   `;
@@ -772,7 +772,7 @@ function renderAnnouncementCard(announcement) {
       <div class="card-body">
         <h4 class="card-title">${escapeHtml(announcement.title)}</h4>
         <div class="card-meta">${date}</div>
-        ${announcement.content ? `<p class="card-description">${previewHtml(announcement, 120)}</p>` : ''}
+        ${announcement.content ? `<p class="card-description">${escapeHtml(truncate(announcement.content, 120))}</p>` : ''}
       </div>
     </div>
   `;
@@ -830,78 +830,6 @@ function formatDate(isoString) {
 function truncate(str, length) {
   if (!str || str.length <= length) return str;
   return str.slice(0, length).trim() + '...';
-}
-
-// Inline formatting worth keeping in a card/banner preview. Everything else is
-// unwrapped to its text: block tags would be invalid inside the <p>/<span>
-// preview wrappers, and links would nest a click target inside the card's
-// onclick.
-const PREVIEW_INLINE_TAGS = ['em', 'strong', 'del', 's', 'code', 'sub', 'sup', 'mark', 'u', 'i', 'b'];
-
-/**
- * Truncate Coterie's server-sanitized content_html to ~length visible
- * characters without breaking markup: tags and entities are never split, only
- * PREVIEW_INLINE_TAGS are kept (re-emitted bare, attributes dropped), dropped
- * block tags become a space so words don't run together, and tags still open
- * at the cut are closed. Assumes sanitized input (balanced tags, text/attr
- * values entity-encoded) — same trust basis as the modal's innerHTML use; it
- * is not a general HTML parser.
- */
-function truncateHtml(html, length) {
-  const open = [];
-  let out = '';
-  let visible = 0;
-  let i = 0;
-  while (i < html.length && visible < length) {
-    const ch = html[i];
-    if (ch === '<') {
-      const end = html.indexOf('>', i);
-      if (end === -1) break; // malformed tail — drop it
-      const m = /^<(\/?)([a-z0-9]+)/i.exec(html.slice(i, end + 1));
-      const name = m && m[2].toLowerCase();
-      if (name && PREVIEW_INLINE_TAGS.includes(name)) {
-        if (!m[1]) {
-          open.push(name);
-          out += `<${name}>`;
-        } else if (open[open.length - 1] === name) {
-          open.pop();
-          out += `</${name}>`;
-        }
-      } else if (out && !/\s$/.test(out)) {
-        out += ' '; // dropped block tag (p, li, br, ...) separates words
-        visible++;
-      }
-      i = end + 1;
-    } else if (ch === '&') {
-      const end = html.indexOf(';', i + 1);
-      if (end !== -1 && end - i <= 9) {
-        out += html.slice(i, end + 1); // entity is one visible character
-        i = end + 1;
-      } else {
-        out += '&amp;'; // bare & — not expected from the sanitizer
-        i++;
-      }
-      visible++;
-    } else {
-      out += ch;
-      i++;
-      visible++;
-    }
-  }
-  out = out.replace(/\s+$/, '');
-  if (i < html.length) out += '...';
-  while (open.length) out += `</${open.pop()}>`;
-  return out;
-}
-
-/**
- * Preview snippet for an announcement: inline-formatted truncation of
- * content_html when the API provides it, escaped raw content otherwise.
- */
-function previewHtml(announcement, length) {
-  return announcement.content_html
-    ? truncateHtml(announcement.content_html, length)
-    : escapeHtml(truncate(announcement.content, length));
 }
 
 /**

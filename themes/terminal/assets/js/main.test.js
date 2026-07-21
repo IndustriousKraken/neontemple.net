@@ -489,17 +489,62 @@ test('announcement_title_and_raw_content_render_as_inert_text', () => {
   assert.ok(!title.includes('<script>'), 'title is not live markup');
   assert.ok(title.includes('&lt;script&gt;'), 'title is escaped text');
 
-  // Previews never use content_html: raw content is truncated + escaped.
+  // Previews render content_html (inline-truncated); the title stays escaped
+  // text, and raw `content` is never inserted as markup.
   const card = sandbox.renderAnnouncementCardFull({
     id: 'a-2',
     title: XSS,
     content: XSS,
-    content_html: '<p><em>ignored in previews</em></p>',
+    content_html: '<p><em>kept in previews</em></p>',
     published_at: '2026-06-20T19:30:00Z',
   });
   assert.ok(!card.includes('<script>'), 'card title/content is not live markup');
-  assert.ok(!card.includes('<em>'), 'card preview never renders content_html');
-  assert.ok(card.includes('&lt;script&gt;'), 'card renders script as escaped text');
+  assert.ok(card.includes('<em>kept in previews</em>'), 'card preview renders content_html inline tags');
+  assert.ok(card.includes('&lt;script&gt;'), 'card renders script title as escaped text');
+
+  // content_html absent (older API): preview falls back to escaped raw content.
+  const fallback = sandbox.renderAnnouncementCardFull({
+    id: 'a-2b',
+    title: 'News',
+    content: XSS,
+    published_at: '2026-06-20T19:30:00Z',
+  });
+  assert.ok(!fallback.includes('<script>'), 'fallback preview is not live markup');
+  assert.ok(fallback.includes('&lt;script&gt;'), 'fallback preview is escaped text');
+});
+
+// --- truncateHtml (inline preview truncation of sanitized content_html) ------
+
+test('truncateHtml_cuts_by_visible_chars_and_closes_open_tags', () => {
+  const { truncateHtml } = loadMain();
+
+  // Short input passes through (minus dropped block wrapper), no ellipsis.
+  assert.equal(truncateHtml('<p>hi <em>there</em></p>', 50), 'hi <em>there</em>');
+
+  // Cut lands inside nested tags: both are closed, ellipsis inside.
+  assert.equal(
+    truncateHtml('<strong><em>abcdef</em></strong>', 3),
+    '<strong><em>abc...</em></strong>',
+  );
+
+  // Entities count as one visible character and are never split.
+  assert.equal(truncateHtml('&amp;&amp;&amp;', 2), '&amp;&amp;...');
+});
+
+test('truncateHtml_keeps_only_inline_tags', () => {
+  const { truncateHtml } = loadMain();
+
+  // Block structure is unwrapped to spaced text.
+  const flat = truncateHtml('<p>one</p>\n<ul>\n<li>two</li>\n<li>three</li>\n</ul>\n', 100);
+  assert.ok(!flat.includes('<'), 'no tags survive from block-only input');
+  assert.equal(flat.replace(/\s+/g, ' '), 'one two three');
+
+  // Links are unwrapped to their text (previews live inside an onclick card);
+  // kept tags are re-emitted bare, so no attributes leak through.
+  assert.equal(truncateHtml('see <a href="https://x.test">the <em class="x">docs</em></a>', 50), 'see the <em>docs</em>');
+
+  // del survives — strikethrough jokes render in previews.
+  assert.equal(truncateHtml('<p>Coterie <del>v1.0.10</del> v1.0.11</p>', 50), 'Coterie <del>v1.0.10</del> v1.0.11');
 });
 
 test('announcement_modal_falls_back_to_text_content_when_content_html_absent', () => {

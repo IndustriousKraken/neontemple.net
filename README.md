@@ -19,6 +19,8 @@ Commands:
 - `hugo` — build the static site into `public/`.
 - `npm test` — run the theme's JS unit tests (`node --test
   "themes/terminal/assets/js/*.test.js"`).
+- `./deploy.sh` — build and rsync `public/` to the coterie server's Caddy web
+  root (`/srv/theneontemple.com`).
 
 ## Configuration
 
