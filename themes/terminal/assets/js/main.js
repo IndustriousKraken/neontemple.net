@@ -125,7 +125,17 @@ function showAnnouncementModal(announcementId) {
     ${announcement.announcement_type ? `<p><span class="meta-label">Type:</span> ${escapeHtml(announcement.announcement_type)}</p>` : ''}
     <p><button type="button" class="btn btn-outline" onclick="copyAnnouncementLink(this)">Copy link</button></p>
   `;
-  document.getElementById('modal-content').textContent = announcement.content || 'No content available.';
+  // content_html is server-sanitized by Coterie (ammonia whitelist — safe tag
+  // subset, no raw HTML/script/event handlers, only http/https/mailto schemes),
+  // so it's the one API value we insert as HTML, and only here in the full-body
+  // modal. Fall back to escaped text when the field is absent (older API). Card
+  // previews keep rendering the raw `content` as text — never content_html.
+  const modalContent = document.getElementById('modal-content');
+  if (announcement.content_html) {
+    modalContent.innerHTML = announcement.content_html;
+  } else {
+    modalContent.textContent = announcement.content || 'No content available.';
+  }
 
   // Reflect the open announcement in the URL so it can be linked/shared directly.
   if (announcement.id != null) {

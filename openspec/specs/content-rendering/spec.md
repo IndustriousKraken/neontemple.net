@@ -5,9 +5,10 @@ TBD - created by archiving change secure-escape-image-urls-in-rendered-html. Upd
 ## Requirements
 ### Requirement: Untrusted API field values are encoded for their DOM output context
 
-Values sourced from the Coterie public API (events and announcements) SHALL be
+Values sourced from the Coterie public API SHALL be treated as untrusted and
 encoded for the output context into which they are inserted before reaching the
-DOM. In particular:
+DOM, with a single explicit exception — the server-sanitized `content_html`
+field described below. In particular:
 
 - an `image_url` value placed into an HTML attribute (such as an `href`, `src`,
   or inline `style` `url(...)`) SHALL be encoded such that it cannot terminate
@@ -18,6 +19,14 @@ DOM. In particular:
   that JS-string-inside-an-HTML-attribute context such that it cannot terminate
   the JS string literal or the surrounding attribute, while still round-tripping
   to the original `id` value (which is also used as a lookup key).
+
+The announcement `content_html` field is produced by Coterie's server-side
+Markdown sanitizer and is the ONLY API value that MAY be inserted as HTML (via
+`innerHTML`), and only in the full announcement view (the modal). It SHALL NOT be
+used where markup could be broken: list and card previews SHALL render the raw
+`content` as encoded text, never `content_html`, since truncating sanitized HTML
+could cut a tag. All other announcement fields, including the raw `content` and
+`title`, remain untrusted and SHALL be inserted as text, never as HTML.
 
 #### Scenario: image_url containing an attribute-breakout payload is neutralized
 
@@ -42,6 +51,19 @@ DOM. In particular:
 - **THEN** activating the rendered inline handler invokes the modal function
   exactly once with the original `id` value
 - **AND** no statement injected through the `id` executes
+
+#### Scenario: sanitized content_html renders as formatted HTML in the modal
+
+- **WHEN** an announcement whose `content_html` is
+  `<p>hello <strong>world</strong></p>` is opened in the modal
+- **THEN** the modal body SHALL contain a rendered `<strong>` element, not the
+  literal tag text
+
+#### Scenario: the raw title and content are still inserted as text
+
+- **WHEN** an announcement whose `title` or raw `content` contains
+  `<script>alert(1)</script>` is rendered
+- **THEN** that value SHALL appear as literal text and no script SHALL execute
 
 ### Requirement: Image paths are resolved to absolute URLs before rendering
 
