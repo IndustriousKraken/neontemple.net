@@ -396,6 +396,126 @@ test('getImageUrl_returns_empty_string_for_falsy_input', () => {
   assert.equal(getImageUrl(null), '');
 });
 
+// --- announcement modal content_html rendering (showAnnouncementModal) -------
+//
+// The full-body modal is the ONE place the announcement `content_html` (Coterie
+// server-sanitized HTML) is inserted via innerHTML. Every other field —
+// including the raw `content` and `title` — stays untrusted and is inserted as
+// text. Card/list previews never use content_html (truncating sanitized HTML
+// could cut a tag). As above we drive main.js in a vm sandbox: getElementById
+// returns fake modal elements whose textContent setter HTML-escapes (like a
+// browser) while innerHTML stores raw, so a raw `<strong>` in innerHTML means
+// the value was rendered as markup, and `&lt;script&gt;` means it was escaped.
+function loadMainModal(announcement) {
+  const makeEl = () => {
+    let html = '';
+    return {
+      set textContent(value) {
+        html = String(value)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+      },
+      set innerHTML(value) {
+        html = String(value);
+      },
+      get innerHTML() {
+        return html;
+      },
+      classList: { add() {}, remove() {} },
+      style: {},
+    };
+  };
+
+  const els = {
+    'modal-image-container': makeEl(),
+    'modal-title': makeEl(),
+    'modal-meta': makeEl(),
+    'modal-content': makeEl(),
+    'detail-modal': makeEl(),
+  };
+
+  const sandbox = {
+    document: {
+      addEventListener() {},
+      createElement: makeEl,
+      getElementById: (id) => els[id] || null,
+      body: { style: {} },
+    },
+    window: {},
+    console,
+    // showAnnouncementModal reflects the open announcement in the URL.
+    history: { replaceState() {} },
+  };
+
+  const code = fs.readFileSync(path.join(__dirname, 'main.js'), 'utf8');
+  vm.createContext(sandbox);
+  vm.runInContext(code, sandbox, { filename: 'main.js' });
+  // main.js assigns window.contentStore at load; register the announcement there
+  // (its lookup key) and open its modal.
+  sandbox.window.contentStore.announcements[announcement.id] = announcement;
+  sandbox.showAnnouncementModal(announcement.id);
+  sandbox.els = els;
+  return sandbox;
+}
+
+test('announcement_modal_renders_content_html_as_formatted_html', () => {
+  const sandbox = loadMainModal({
+    id: 'a-1',
+    title: 'News',
+    content: 'hi there',
+    content_html: '<p>hi <strong>there</strong></p>',
+    published_at: '2026-06-20T19:30:00Z',
+  });
+
+  const body = sandbox.els['modal-content'].innerHTML;
+  // Rendered as markup (a real <strong> element), not the escaped literal tag.
+  assert.ok(body.includes('<strong>there</strong>'), 'content_html renders as markup');
+  assert.ok(!body.includes('&lt;strong&gt;'), 'content_html is not inserted as escaped text');
+});
+
+test('announcement_title_and_raw_content_render_as_inert_text', () => {
+  const XSS = '<script>alert(1)</script>';
+
+  // Modal: the title is inserted as text even when content_html is present.
+  const sandbox = loadMainModal({
+    id: 'a-2',
+    title: XSS,
+    content: XSS,
+    content_html: '<p>safe</p>',
+    published_at: '2026-06-20T19:30:00Z',
+  });
+  const title = sandbox.els['modal-title'].innerHTML;
+  assert.ok(!title.includes('<script>'), 'title is not live markup');
+  assert.ok(title.includes('&lt;script&gt;'), 'title is escaped text');
+
+  // Previews never use content_html: raw content is truncated + escaped.
+  const card = sandbox.renderAnnouncementCardFull({
+    id: 'a-2',
+    title: XSS,
+    content: XSS,
+    content_html: '<p><em>ignored in previews</em></p>',
+    published_at: '2026-06-20T19:30:00Z',
+  });
+  assert.ok(!card.includes('<script>'), 'card title/content is not live markup');
+  assert.ok(!card.includes('<em>'), 'card preview never renders content_html');
+  assert.ok(card.includes('&lt;script&gt;'), 'card renders script as escaped text');
+});
+
+test('announcement_modal_falls_back_to_text_content_when_content_html_absent', () => {
+  const sandbox = loadMainModal({
+    id: 'a-3',
+    title: 'News',
+    content: 'plain <b>text</b> only',
+    // content_html absent (older API) -> the modal renders `content` as text.
+    published_at: '2026-06-20T19:30:00Z',
+  });
+
+  const body = sandbox.els['modal-content'].innerHTML;
+  assert.ok(!body.includes('<b>'), 'no raw tags rendered on the text fallback');
+  assert.ok(body.includes('plain &lt;b&gt;text&lt;/b&gt; only'), 'fallback renders content as escaped text');
+});
+
 // --- membership type option labels (join form) --------------------------------
 
 test('formatMembershipOption_renders_fee_and_period_variants', () => {
