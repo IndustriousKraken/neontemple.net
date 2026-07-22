@@ -186,7 +186,9 @@ test('navigating to an unloaded month fetches its range and merges into the grid
     async getEvents(params) {
       calls.push(params);
       // A past-month event the old flat upcoming fetch would never have returned.
-      return [{ id: 5, title: 'Past Meetup', start_time: '2026-05-12T18:00:00Z' }];
+      // timezone pins eventDayKey to UTC (matching the grid's UTC day keys) so the
+      // grid-placement assertion below doesn't depend on the runtime zone.
+      return [{ id: 5, title: 'Past Meetup', start_time: '2026-05-12T18:00:00Z', timezone: 'UTC' }];
     },
   };
 
@@ -213,6 +215,24 @@ test('an already-loaded month is not refetched', async () => {
   assert.equal(fetches, 1, 'first visit fetches');
   await component.loadMonth(2026, 5); // June again
   assert.equal(fetches, 1, 'returning to a loaded month issues no further fetch');
+});
+
+test('concurrent navigation to the same unloaded month fetches only once', async () => {
+  const { component, sandbox } = makeComponent();
+  let fetches = 0;
+  sandbox.CoterieAPI = {
+    async getEvents() {
+      fetches++;
+      return [];
+    },
+  };
+
+  // Two navigations to the same unloaded month race the guard before either
+  // resolves. The month is claimed synchronously (before the fetch awaits), so
+  // the second call is skipped rather than firing a duplicate request.
+  await Promise.all([component.loadMonth(2026, 7), component.loadMonth(2026, 7)]);
+
+  assert.equal(fetches, 1, 'the second concurrent call is skipped by the up-front claim');
 });
 
 test('an event spanning two overlapping month loads is de-duplicated by id', async () => {

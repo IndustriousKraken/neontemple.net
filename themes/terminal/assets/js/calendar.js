@@ -133,6 +133,10 @@ document.addEventListener('alpine:init', () => {
     async loadMonth(year, month) {
       const key = `${year}-${String(month + 1).padStart(2, '0')}`;
       if (this.loadedMonths.has(key)) return;
+      // Claim the month before awaiting so a second navigation to the same
+      // unloaded month can't fire a duplicate fetch; rolled back on failure
+      // below so a failed month stays retryable.
+      this.loadedMonths.add(key);
 
       this.loading = true;
       this.error = null;
@@ -157,8 +161,8 @@ document.addEventListener('alpine:init', () => {
           if (window.contentStore) window.contentStore.events[e.id] = e;
         }
         this.events = [...byId.values()];
-        this.loadedMonths.add(key);
       } catch (err) {
+        this.loadedMonths.delete(key); // failed — let a later navigation retry
         this.error = 'Could not load events';
         console.error(err);
       } finally {
