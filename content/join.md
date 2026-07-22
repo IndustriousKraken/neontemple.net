@@ -1,6 +1,7 @@
 ---
 title: "Join"
 layout: "join"
+aliases: ["/signup/"]
 ---
 
 Membership gets you access to weekly meetings, our private Discord, training sessions, and the network of security professionals who make up the guild.
