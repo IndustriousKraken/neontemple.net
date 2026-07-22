@@ -170,6 +170,15 @@ test('get_events_omits_zero_limit', async () => {
   assert.deepEqual(calls, ['/public/events'], 'falsy 0 is not appended as a limit');
 });
 
+test('get_events_appends_from_and_to_range_params', async () => {
+  const { CoterieAPI, calls } = loadAPI();
+  await CoterieAPI.getEvents({ from: '2026-06-01T00:00:00Z', to: '2026-07-01T00:00:00Z' });
+  assert.equal(calls.length, 1);
+  const url = new URL(calls[0], 'http://x');
+  assert.equal(url.searchParams.get('from'), '2026-06-01T00:00:00Z', 'from param carried');
+  assert.equal(url.searchParams.get('to'), '2026-07-01T00:00:00Z', 'to param carried');
+});
+
 test('get_announcements_appends_only_supplied_params', async () => {
   const supplied = loadAPI();
   await supplied.CoterieAPI.getAnnouncements({ type: 'news' });

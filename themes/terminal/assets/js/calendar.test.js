@@ -177,6 +177,96 @@ test('loadEvents_sets_error_state_when_getEvents_rejects', async () => {
   assert.equal(component.loading, false, 'loading flag cleared by the finally branch');
 });
 
+// --- loadMonth: per-displayed-month fetch, merge, dedup, and error handling ---
+
+test('navigating to an unloaded month fetches its range and merges into the grid', async () => {
+  const { component, sandbox } = makeComponent();
+  const calls = [];
+  sandbox.CoterieAPI = {
+    async getEvents(params) {
+      calls.push(params);
+      // A past-month event the old flat upcoming fetch would never have returned.
+      // timezone pins eventDayKey to UTC (matching the grid's UTC day keys) so the
+      // grid-placement assertion below doesn't depend on the runtime zone.
+      return [{ id: 5, title: 'Past Meetup', start_time: '2026-05-12T18:00:00Z', timezone: 'UTC' }];
+    },
+  };
+
+  // makeComponent sits on June 2026; page back to the (unloaded) May.
+  await component.prevMonth();
+
+  assert.equal(calls.length, 1, 'exactly one ranged fetch for the newly visited month');
+  assert.ok(calls[0].from && calls[0].to, 'the fetch carries from and to range params');
+  const gridIds = collectGridEventIds(component.calendarDays);
+  assert.ok(gridIds.includes(5), 'the past event appears on its day in May');
+});
+
+test('an already-loaded month is not refetched', async () => {
+  const { component, sandbox } = makeComponent();
+  let fetches = 0;
+  sandbox.CoterieAPI = {
+    async getEvents() {
+      fetches++;
+      return [];
+    },
+  };
+
+  await component.loadMonth(2026, 5); // June
+  assert.equal(fetches, 1, 'first visit fetches');
+  await component.loadMonth(2026, 5); // June again
+  assert.equal(fetches, 1, 'returning to a loaded month issues no further fetch');
+});
+
+test('concurrent navigation to the same unloaded month fetches only once', async () => {
+  const { component, sandbox } = makeComponent();
+  let fetches = 0;
+  sandbox.CoterieAPI = {
+    async getEvents() {
+      fetches++;
+      return [];
+    },
+  };
+
+  // Two navigations to the same unloaded month race the guard before either
+  // resolves. The month is claimed synchronously (before the fetch awaits), so
+  // the second call is skipped rather than firing a duplicate request.
+  await Promise.all([component.loadMonth(2026, 7), component.loadMonth(2026, 7)]);
+
+  assert.equal(fetches, 1, 'the second concurrent call is skipped by the up-front claim');
+});
+
+test('an event spanning two overlapping month loads is de-duplicated by id', async () => {
+  const { component, sandbox } = makeComponent();
+  // A boundary event returned by both the May (padded) and the June range.
+  const shared = { id: 7, title: 'Boundary', start_time: '2026-06-01T12:00:00Z' };
+  sandbox.CoterieAPI = {
+    async getEvents() {
+      return [shared];
+    },
+  };
+
+  await component.loadMonth(2026, 4); // May — padded range reaches into June 1
+  await component.loadMonth(2026, 5); // June — also returns the shared event
+
+  const matches = component.events.filter(e => e.id === 7);
+  assert.equal(matches.length, 1, 'the shared event appears exactly once');
+});
+
+test('loadMonth_sets_error_state_when_getEvents_rejects', async () => {
+  const { component, sandbox } = makeComponent();
+  // A rejecting getEvents simulates the backend being unreachable.
+  sandbox.CoterieAPI = {
+    async getEvents() {
+      throw new Error('down');
+    },
+  };
+
+  await assert.doesNotReject(() => component.loadMonth(2026, 5));
+
+  assert.equal(component.error, 'Could not load events', 'error state surfaced for a failed load');
+  assert.equal(component.loading, false, 'loading flag cleared by the finally branch');
+});
+
 // --- searchFilteredEvents: the calendar's case-insensitive, multi-field filter ---
 
 test('searchFilteredEvents_returns_all_events_for_empty_or_whitespace_search', () => {

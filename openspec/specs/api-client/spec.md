@@ -45,6 +45,8 @@ resolve to the parsed JSON body.
 The API client's `getEvents` and `getAnnouncements` methods SHALL append a `limit`
 and/or `type` query parameter to their endpoint only when that parameter has a
 truthy value, and SHALL request the bare endpoint when no parameters are supplied.
+`getEvents` SHALL additionally append `from` and/or `to` query parameters, each
+only when supplied a truthy value, so the caller can request an event date range.
 
 #### Scenario: a limit and type produce a combined query string
 
@@ -60,6 +62,11 @@ truthy value, and SHALL request the bare endpoint when no parameters are supplie
 
 - **WHEN** `getEvents({ limit: 0 })` is called
 - **THEN** the request targets `/public/events` with no `limit` parameter
+
+#### Scenario: a from/to range is appended for getEvents
+
+- **WHEN** `getEvents({ from: '2026-06-01T00:00:00Z', to: '2026-07-01T00:00:00Z' })` is called
+- **THEN** the request URL SHALL carry both a `from` and a `to` query parameter with those values
 
 ### Requirement: The API client exposes the membership-types listing
 

@@ -41,12 +41,16 @@ const CoterieAPI = {
    * @param {Object} params - Query parameters
    * @param {number} params.limit - Max number of events
    * @param {string} params.type - Filter by event type slug
+   * @param {string} params.from - ISO instant; lower bound of an event date range
+   * @param {string} params.to - ISO instant; upper bound of an event date range
    * @returns {Promise<Array>} List of events
    */
-  async getEvents({ limit, type } = {}) {
+  async getEvents({ limit, type, from, to } = {}) {
     const params = new URLSearchParams();
     if (limit) params.set('limit', limit);
     if (type) params.set('type', type);
+    if (from) params.set('from', from);
+    if (to) params.set('to', to);
 
     const query = params.toString();
     return this.fetch(`/public/events${query ? '?' + query : ''}`);

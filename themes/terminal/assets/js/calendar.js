@@ -25,6 +25,7 @@ document.addEventListener('alpine:init', () => {
   Alpine.data('calendar', () => ({
     // State
     events: [],
+    loadedMonths: new Set(), // 'YYYY-MM' keys already fetched, so navigation doesn't refetch
     loading: true,
     error: null,
     search: '',
@@ -122,7 +123,51 @@ document.addEventListener('alpine:init', () => {
 
     // Methods
     async init() {
-      await this.loadEvents();
+      await this.loadMonth(this.currentYear, this.currentMonth);
+    },
+
+    // Fetch the given month's events via the API's from/to range and merge them,
+    // de-duplicated by id, into this.events. A month already fetched is skipped.
+    // The range is padded ~1 day each side so events near a timezone boundary
+    // aren't missed; day-bucketing stays on eventDayKey (the event's own zone).
+    async loadMonth(year, month) {
+      const key = `${year}-${String(month + 1).padStart(2, '0')}`;
+      if (this.loadedMonths.has(key)) return;
+      // Claim the month before awaiting so a second navigation to the same
+      // unloaded month can't fire a duplicate fetch; rolled back on failure
+      // below so a failed month stays retryable.
+      this.loadedMonths.add(key);
+
+      this.loading = true;
+      this.error = null;
+
+      const from = new Date(year, month, 1);
+      from.setDate(from.getDate() - 1);
+      const to = new Date(year, month + 1, 1);
+      to.setDate(to.getDate() + 1);
+
+      try {
+        const events = await CoterieAPI.getEvents({
+          from: from.toISOString(),
+          to: to.toISOString(),
+        });
+        // Merge into a by-id map so overlapping month ranges dedup to one entry.
+        const byId = new Map(this.events.map(e => [e.id, e]));
+        for (const e of events) {
+          // Trust boundary: drop records whose start_time does not parse (as
+          // loadEvents does) so a bad record never reaches the grid.
+          if (Number.isNaN(new Date(e.start_time).getTime())) continue;
+          byId.set(e.id, e);
+          if (window.contentStore) window.contentStore.events[e.id] = e;
+        }
+        this.events = [...byId.values()];
+      } catch (err) {
+        this.loadedMonths.delete(key); // failed — let a later navigation retry
+        this.error = 'Could not load events';
+        console.error(err);
+      } finally {
+        this.loading = false;
+      }
     },
 
     async loadEvents() {
@@ -164,19 +209,22 @@ document.addEventListener('alpine:init', () => {
       }
     },
 
-    prevMonth() {
+    async prevMonth() {
       this.currentDate = new Date(this.currentYear, this.currentMonth - 1, 1);
       this.selectedDate = null;
+      await this.loadMonth(this.currentYear, this.currentMonth);
     },
 
-    nextMonth() {
+    async nextMonth() {
       this.currentDate = new Date(this.currentYear, this.currentMonth + 1, 1);
       this.selectedDate = null;
+      await this.loadMonth(this.currentYear, this.currentMonth);
     },
 
-    goToToday() {
+    async goToToday() {
       this.currentDate = new Date();
       this.selectedDate = new Date();
+      await this.loadMonth(this.currentYear, this.currentMonth);
     },
 
     selectDay(day) {
@@ -188,7 +236,7 @@ document.addEventListener('alpine:init', () => {
       this.selectedDate = null;
     },
 
-    goToEvent(event) {
+    async goToEvent(event) {
       const eventDate = new Date(event.start_time);
       // Navigate to the event's month
       this.currentDate = new Date(eventDate.getFullYear(), eventDate.getMonth(), 1);
@@ -197,6 +245,7 @@ document.addEventListener('alpine:init', () => {
       // Clear search and close dropdown
       this.search = '';
       this.searchFocused = false;
+      await this.loadMonth(this.currentYear, this.currentMonth);
     },
 
     setView(view) {
