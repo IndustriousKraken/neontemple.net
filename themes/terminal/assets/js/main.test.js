@@ -590,3 +590,83 @@ test('formatMembershipOption_renders_fee_and_period_variants', () => {
     'zero fee renders Free regardless of period',
   );
 });
+
+// --- signup captcha token (initSignupForm) -----------------------------------
+//
+// Cloudflare Turnstile injects a hidden `cf-turnstile-response` field into the
+// form; initSignupForm must forward it to Coterie as `captcha_token`, omit it
+// when the widget is unconfigured (field absent), and reset the single-use
+// widget on a failed submit so a retry mints a fresh token. As above we drive
+// main.js in a vm sandbox: a fake form captures its submit handler and yields
+// `fields` through a stub FormData; CoterieAPI.signup records the payload (or
+// throws to exercise the reset path).
+function loadMainSignup(fields, signup) {
+  const submitBtn = { textContent: 'Create Account', disabled: false };
+  let submitHandler;
+  const form = {
+    innerHTML: '',
+    addEventListener(type, handler) {
+      if (type === 'submit') submitHandler = handler;
+    },
+    // No membership <select> -> populateMembershipTypes returns without an API
+    // call; no pre-existing .form-error.
+    querySelector: (sel) => (sel === 'button[type="submit"]' ? submitBtn : null),
+    insertBefore() {},
+  };
+
+  const turnstile = { resetCount: 0, reset() { this.resetCount += 1; } };
+
+  const sandbox = {
+    document: {
+      addEventListener() {},
+      getElementById: (id) => (id === 'signup-form' ? form : null),
+      createElement: () => ({ className: '', textContent: '' }),
+    },
+    // `new FormData(form)` -> the form's fields as an array of [k, v] entries,
+    // which Object.fromEntries consumes exactly like a real FormData.
+    FormData: function () { return Object.entries(fields); },
+    CoterieAPI: { signup, getMembershipTypes: async () => [] },
+    window: { turnstile, COTERIE_PORTAL_URL: 'https://portal.test' },
+    console,
+  };
+
+  const code = fs.readFileSync(path.join(__dirname, 'main.js'), 'utf8');
+  vm.createContext(sandbox);
+  vm.runInContext(code, sandbox, { filename: 'main.js' });
+  sandbox.initSignupForm();
+  return { submit: () => submitHandler({ preventDefault() {} }), turnstile };
+}
+
+const SIGNUP_FIELDS = {
+  email: 'a@b.co', username: 'neo', full_name: 'The One', password: 'x'.repeat(10),
+};
+
+test('initSignupForm forwards cf-turnstile-response as captcha_token', async () => {
+  let sent;
+  const { submit } = loadMainSignup(
+    { ...SIGNUP_FIELDS, 'cf-turnstile-response': 'TOKEN123' },
+    async (data) => { sent = data; return {}; },
+  );
+  await submit();
+  assert.equal(sent.captcha_token, 'TOKEN123', 'widget response is sent as captcha_token');
+  assert.ok(!('cf-turnstile-response' in sent), 'raw turnstile field is not forwarded');
+});
+
+test('initSignupForm omits captcha_token when the widget is unconfigured', async () => {
+  let sent;
+  const { submit } = loadMainSignup(
+    { ...SIGNUP_FIELDS },
+    async (data) => { sent = data; return {}; },
+  );
+  await submit();
+  assert.ok(!('captcha_token' in sent), 'no captcha_token when there is no widget response');
+});
+
+test('initSignupForm resets the single-use widget after a failed submit', async () => {
+  const { submit, turnstile } = loadMainSignup(
+    { ...SIGNUP_FIELDS, 'cf-turnstile-response': 'TOKEN123' },
+    async () => { throw new Error('bot challenge failed'); },
+  );
+  await submit();
+  assert.equal(turnstile.resetCount, 1, 'a failed submit resets the widget so a retry gets a fresh token');
+});
