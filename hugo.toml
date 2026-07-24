@@ -9,6 +9,12 @@ relativeURLs = true
   coterieAPI = 'https://coterie.theneontemple.com'
   portalURL = 'https://coterie.theneontemple.com/login'
 
+  # Cloudflare Turnstile site key (PUBLIC — rendered in the join form). Empty =
+  # no bot-challenge widget. Set to your Turnstile site key, or the always-pass
+  # test key '1x00000000000000000000AA', to enable. Pair with the Coterie
+  # backend secret (COTERIE__BOT_CHALLENGE__PROVIDER=turnstile + SECRET_KEY).
+  turnstileSiteKey = ''
+
   # Social links
   email = 'info@theneontemple.com'
   facebook = ''
