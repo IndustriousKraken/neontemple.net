@@ -13,7 +13,7 @@ relativeURLs = true
   # no bot-challenge widget. Set to your Turnstile site key, or the always-pass
   # test key '1x00000000000000000000AA', to enable. Pair with the Coterie
   # backend secret (COTERIE__BOT_CHALLENGE__PROVIDER=turnstile + SECRET_KEY).
-  turnstileSiteKey = ''
+  turnstileSiteKey = '0x4AAAAAAD8gkrsteQF8o1Wz'
 
   # Social links
   email = 'info@theneontemple.com'
