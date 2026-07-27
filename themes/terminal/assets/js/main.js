@@ -83,12 +83,22 @@ function showEventModal(eventId) {
     imageContainer.innerHTML = '';
   }
 
+  // The actual Register control lives here rather than on the card, which is
+  // already a single click target. It goes inside modal-meta, which every modal
+  // open (event and announcement alike) rewrites wholesale — so a registerable
+  // event cannot leave its button behind on the next, non-registerable one.
+  const registerUrl = safeRegistrationUrl(event.registration_url);
+  const registerBtn = registerUrl
+    ? `<p class="modal-register"><a class="btn" href="${escapeAttr(registerUrl)}" target="_blank" rel="noopener">${escapeHtml(registrationLabel(event.guest_price_cents))}</a></p>`
+    : '';
+
   document.getElementById('modal-title').textContent = event.title;
   document.getElementById('modal-meta').innerHTML = `
     <p><span class="meta-label">Date:</span> ${dateStr}</p>
     <p><span class="meta-label">Time:</span> ${timeStr}</p>
     ${event.location ? `<p><span class="meta-label">Location:</span> ${escapeHtml(event.location)}</p>` : ''}
     ${event.event_type ? `<p><span class="meta-label">Type:</span> ${escapeHtml(event.event_type)}</p>` : ''}
+    ${registerBtn}
   `;
   document.getElementById('modal-content').textContent = event.description || 'No description available.';
 
@@ -728,6 +738,37 @@ function initSignupForm() {
 }
 
 /**
+ * The event's registration URL, but only when it is a genuine absolute
+ * http/https URL. It lands in an `href`, where a `javascript:` value would
+ * execute in the page's origin — attribute escaping does not stop that, so the
+ * scheme is checked even though the value comes from our own API. Anything else
+ * (other schemes, relative paths, garbage, absent) yields null and the caller
+ * renders no affordance at all. `new URL` throws on unparseable input, hence the
+ * try/catch. Rejection is deliberately silent: logging the value would leak it
+ * into a shared console.
+ */
+function safeRegistrationUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Label for the registration badge and button: "Register — $30", or
+ * "Register — Free" when guest_price_cents is zero or absent. Never "$0.00" —
+ * that reads as a pricing bug to a visitor. Whole-dollar prices drop the cents,
+ * as in formatMembershipOption.
+ */
+function registrationLabel(priceCents) {
+  if (!priceCents) return 'Register — Free';
+  const dollars = priceCents / 100;
+  return `Register — ${Number.isInteger(dollars) ? `$${dollars}` : `$${dollars.toFixed(2)}`}`;
+}
+
+/**
  * Render an event card
  */
 function renderEventCard(event) {
@@ -750,6 +791,13 @@ function renderEventCard(event) {
   const imageHtml = event.image_url
     ? `<div class="card-thumb"><img src="${escapeAttr(getImageUrl(event.image_url))}" alt=""></div>`
     : '';
+  // Registerable events get a scannable cost badge; almost every event on this
+  // calendar is a show-up event and renders nothing here. The badge is inert
+  // text — the actionable link lives in the modal so the card keeps a single
+  // click target.
+  const registrationBadge = safeRegistrationUrl(event.registration_url)
+    ? `<span class="badge badge-register">${escapeHtml(registrationLabel(event.guest_price_cents))}</span>`
+    : '';
 
   return `
     <div class="card card-clickable" onclick="showEventModal('${escapeJsAttr(event.id)}')">
@@ -759,6 +807,7 @@ function renderEventCard(event) {
         <div class="card-meta">
           <span class="event-date">${date}</span>
           ${location}
+          ${registrationBadge}
         </div>
         ${event.description ? `<p class="card-description">${escapeHtml(truncate(event.description, 100))}</p>` : ''}
       </div>

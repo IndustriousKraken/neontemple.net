@@ -135,6 +135,8 @@
             <div class="card-meta">
               <span class="event-date" x-text="formatEventTime(event.start_time, event.timezone)"></span>
               <span x-show="event.location" class="event-location" x-text="event.location"></span>
+              {{/* safeRegistrationUrl / registrationLabel are main.js globals; only registerable events get a badge. */}}
+              <span x-show="safeRegistrationUrl(event.registration_url)" class="badge badge-register" x-text="registrationLabel(event.guest_price_cents)"></span>
             </div>
             <p x-show="event.description" class="card-description" x-text="event.description.substring(0, 120) + (event.description.length > 120 ? '...' : '')"></p>
           </div>
@@ -162,6 +164,7 @@
           <div class="card-meta">
             <span class="event-date" x-text="formatEventDate(event.start_time, event.timezone) + ' at ' + formatEventTime(event.start_time, event.timezone)"></span>
             <span x-show="event.location" class="event-location" x-text="event.location"></span>
+            <span x-show="safeRegistrationUrl(event.registration_url)" class="badge badge-register" x-text="registrationLabel(event.guest_price_cents)"></span>
           </div>
           <p x-show="event.description" class="card-description" x-text="event.description.substring(0, 150) + (event.description.length > 150 ? '...' : '')"></p>
           <div x-show="event.event_type" class="card-badges">
