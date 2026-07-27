@@ -53,6 +53,10 @@ function loadMain() {
     // inside getImageUrl; an empty object is enough for both.
     window: {},
     console,
+    // A vm context carries only the ECMAScript built-ins, so the WHATWG URL
+    // parser safeRegistrationUrl relies on has to be handed in explicitly;
+    // without it every parse would throw and fail closed, hiding real bugs.
+    URL,
   };
 
   const code = fs.readFileSync(path.join(__dirname, 'main.js'), 'utf8');
@@ -406,7 +410,7 @@ test('getImageUrl_returns_empty_string_for_falsy_input', () => {
 // returns fake modal elements whose textContent setter HTML-escapes (like a
 // browser) while innerHTML stores raw, so a raw `<strong>` in innerHTML means
 // the value was rendered as markup, and `&lt;script&gt;` means it was escaped.
-function loadMainModal(announcement) {
+function loadMainWithModal() {
   const makeEl = () => {
     let html = '';
     return {
@@ -446,16 +450,22 @@ function loadMainModal(announcement) {
     console,
     // showAnnouncementModal reflects the open announcement in the URL.
     history: { replaceState() {} },
+    URL,
   };
 
   const code = fs.readFileSync(path.join(__dirname, 'main.js'), 'utf8');
   vm.createContext(sandbox);
   vm.runInContext(code, sandbox, { filename: 'main.js' });
+  sandbox.els = els;
+  return sandbox;
+}
+
+function loadMainModal(announcement) {
+  const sandbox = loadMainWithModal();
   // main.js assigns window.contentStore at load; register the announcement there
   // (its lookup key) and open its modal.
   sandbox.window.contentStore.announcements[announcement.id] = announcement;
   sandbox.showAnnouncementModal(announcement.id);
-  sandbox.els = els;
   return sandbox;
 }
 
@@ -559,6 +569,149 @@ test('announcement_modal_falls_back_to_text_content_when_content_html_absent', (
   const body = sandbox.els['modal-content'].innerHTML;
   assert.ok(!body.includes('<b>'), 'no raw tags rendered on the text fallback');
   assert.ok(body.includes('plain &lt;b&gt;text&lt;/b&gt; only'), 'fallback renders content as escaped text');
+});
+
+// --- event registration affordance -------------------------------------------
+//
+// A registration affordance appears IFF the API sends a usable `registration_url`
+// — the opt-in signal — and never because of a price, an rsvp flag, or a
+// visibility. The value lands in an `href`, so it is scheme-validated first: a
+// `javascript:` URL executes in the page's origin, which attribute escaping does
+// not prevent. The card carries only an inert cost badge; the anchor lives in the
+// modal, which is reused across events, so it must not outlive its own event.
+
+// Open an event's modal in a fresh-enough sandbox: register it in contentStore
+// (the lookup key) and read back what modal-meta rendered.
+function openEventModal(sandbox, event) {
+  sandbox.window.contentStore.events[event.id] = event;
+  sandbox.showEventModal(event.id);
+  return sandbox.els['modal-meta'].innerHTML;
+}
+
+const WEEKLY_EVENT = {
+  id: 'ev-weekly',
+  title: 'Thursday Talk',
+  start_time: '2026-06-25T23:00:00Z',
+  timezone: 'America/New_York',
+};
+const PAID_EVENT = {
+  id: 'ev-paid',
+  title: 'Soldering Workshop',
+  start_time: '2026-07-11T14:00:00Z',
+  timezone: 'America/New_York',
+  guest_price_cents: 3000,
+  registration_url: 'https://coterie.test/register/ev-paid',
+};
+
+test('safeRegistrationUrl accepts only absolute http(s) URLs', () => {
+  const { safeRegistrationUrl } = loadMain();
+
+  assert.equal(
+    safeRegistrationUrl('https://coterie.test/register/1'),
+    'https://coterie.test/register/1',
+  );
+  assert.equal(safeRegistrationUrl('http://coterie.test/r'), 'http://coterie.test/r');
+
+  // Script-executing and other non-web schemes are rejected...
+  assert.equal(safeRegistrationUrl('javascript:window.__xss=1'), null);
+  assert.equal(safeRegistrationUrl('JavaScript:window.__xss=1'), null, 'scheme match is case-insensitive');
+  assert.equal(safeRegistrationUrl(' javascript:window.__xss=1'), null, 'leading whitespace does not smuggle a scheme');
+  assert.equal(safeRegistrationUrl('data:text/html,<script>1</script>'), null);
+  // ...as is anything that is not an absolute URL at all.
+  assert.equal(safeRegistrationUrl('/register/1'), null, 'relative path');
+  assert.equal(safeRegistrationUrl('not a url'), null);
+  assert.equal(safeRegistrationUrl(''), null);
+  assert.equal(safeRegistrationUrl(null), null);
+  assert.equal(safeRegistrationUrl(undefined), null, 'absent field is the common case');
+});
+
+test('event without a registration_url renders no badge and no button', () => {
+  const sandbox = loadMainWithModal();
+
+  // A price alone is not evidence the public may register — that call belongs to
+  // the backend, and this is the field it makes it with.
+  for (const event of [WEEKLY_EVENT, { ...WEEKLY_EVENT, guest_price_cents: 2500, rsvp_required: true }]) {
+    const card = sandbox.renderEventCard(event);
+    assert.ok(!card.includes('badge'), 'no badge element on a show-up event');
+    assert.ok(!card.includes('Register'), 'no registration wording on a show-up event');
+
+    const meta = openEventModal(sandbox, event);
+    assert.ok(!meta.includes('<a'), 'no anchor in the modal for a show-up event');
+    assert.ok(!meta.includes('Register'), 'no registration wording in the modal');
+  }
+});
+
+test('javascript: registration_url renders no affordance and no anchor', () => {
+  const sandbox = loadMainWithModal();
+  const event = {
+    ...PAID_EVENT,
+    registration_url: 'javascript:window.__xss=1',
+  };
+
+  const card = sandbox.renderEventCard(event);
+  assert.ok(!card.includes('badge'), 'a rejected URL renders no badge');
+  assert.ok(!card.includes('javascript:'), 'the rejected value never reaches the markup');
+
+  const meta = openEventModal(sandbox, event);
+  assert.ok(!meta.includes('<a'), 'no anchor is inserted for a rejected URL');
+  assert.ok(!meta.includes('javascript:'), 'the rejected value never reaches the DOM');
+
+  // Relative URLs fail closed the same way — no broken link is rendered.
+  const relative = openEventModal(sandbox, { ...PAID_EVENT, id: 'ev-rel', registration_url: '/register' });
+  assert.ok(!relative.includes('<a'), 'a relative URL renders no anchor either');
+});
+
+test('registerable event shows the cost on the card and links from the modal', () => {
+  const sandbox = loadMainWithModal();
+
+  const card = sandbox.renderEventCard(PAID_EVENT);
+  assert.ok(card.includes('class="badge badge-register"'), 'the card carries a cost badge');
+  assert.ok(card.includes('Register — $30'), '3000 cents reads as $30');
+  // The card stays a single click target: one onclick, no nested anchor.
+  assert.equal((card.match(/onclick=/g) || []).length, 1, 'exactly one click target on the card');
+  assert.ok(!card.includes('<a'), 'the badge is not itself a link');
+
+  const meta = openEventModal(sandbox, PAID_EVENT);
+  assert.ok(
+    meta.includes('href="https://coterie.test/register/ev-paid"'),
+    'the modal anchors to the validated registration URL',
+  );
+  assert.ok(meta.includes('rel="noopener"'), 'the new-tab link is opened without a window opener');
+  assert.ok(meta.includes('Register — $30'), 'the button names the action and states the cost');
+});
+
+test('zero-price registerable event reads as free, not $0.00', () => {
+  const sandbox = loadMainWithModal();
+  const free = { ...PAID_EVENT, id: 'ev-free', guest_price_cents: 0 };
+
+  const card = sandbox.renderEventCard(free);
+  assert.ok(card.includes('Register — Free'), 'a zero price reads as Free');
+  assert.ok(!card.includes('$0'), 'never renders a zero currency amount');
+
+  const meta = openEventModal(sandbox, free);
+  assert.ok(meta.includes('Register — Free'));
+  assert.ok(!meta.includes('$0'));
+
+  // guest_price_cents absent entirely (registration required, nothing to pay).
+  const noPrice = sandbox.renderEventCard({ ...PAID_EVENT, id: 'ev-np', guest_price_cents: undefined });
+  assert.ok(noPrice.includes('Register — Free'), 'a missing price reads as Free too');
+
+  // Fractional dollars keep their cents.
+  assert.ok(
+    sandbox.renderEventCard({ ...PAID_EVENT, id: 'ev-frac', guest_price_cents: 1250 }).includes('Register — $12.50'),
+  );
+});
+
+test('modal registration button does not survive into the next event', () => {
+  const sandbox = loadMainWithModal();
+
+  const paid = openEventModal(sandbox, PAID_EVENT);
+  assert.ok(paid.includes('Register — $30'), 'the registerable event shows its button');
+
+  // The modal is reused across events — the classic stale-control bug.
+  const weekly = openEventModal(sandbox, WEEKLY_EVENT);
+  assert.ok(!weekly.includes('Register'), 'no stale button on the next, non-registerable event');
+  assert.ok(!weekly.includes('<a'), 'no stale anchor either');
 });
 
 // --- membership type option labels (join form) --------------------------------

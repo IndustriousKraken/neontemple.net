@@ -548,6 +548,12 @@ body::before {
   color: var(--bg-primary);
 }
 
+/* Registration cost badge — only on the few events that take sign-ups. */
+.badge-register {
+  background: var(--accent);
+  color: var(--bg-primary);
+}
+
 /* Event specific */
 .event-date {
   color: var(--accent);
@@ -1498,6 +1504,11 @@ select.form-input {
 .modal-meta .meta-label {
   color: var(--text-muted);
   margin-right: var(--space-sm);
+}
+
+/* The Register button sits below the meta lines, not inline with them. */
+.modal-meta .modal-register {
+  margin-top: var(--space-md);
 }
 
 /* Modal content */
