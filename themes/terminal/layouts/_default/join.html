@@ -28,8 +28,22 @@
 
   <div class="form-group">
     <label class="form-label" for="password">Password</label>
-    <!-- minlength matches Coterie's validate_password minimum (10). -->
-    <input type="password" id="password" name="password" class="form-input" required autocomplete="new-password" minlength="10">
+    <!-- minlength matches Coterie's validate_password minimum (10); the
+         maximum it enforces is 128 UTF-8 bytes. There is deliberately NO
+         maxlength: a browser clips pasted input to maxlength silently, and on a
+         masked field the visitor never sees the loss — they submit a credential
+         they did not choose and cannot log in afterwards. minlength is the same
+         approximation (both count UTF-16 code units, not the backend's bytes)
+         but it fails loudly and leaves the value untouched. Destructiveness,
+         not precision, is what rules maxlength out. The ceiling is announced
+         below and warned about in initPasswordLengthHint(); the backend check
+         is the enforcement. Do not "fix" the missing maxlength. -->
+    <input type="password" id="password" name="password" class="form-input" required autocomplete="new-password" minlength="10" aria-describedby="password-hint">
+    <p id="password-hint" class="form-note" aria-live="polite"
+       style="margin-top: var(--space-xs); color: var(--text-secondary); font-size: 0.85em;">
+      10 characters minimum, 128 bytes maximum — emoji and accented letters take
+      several bytes each.
+    </p>
   </div>
 
   <div class="form-group">
