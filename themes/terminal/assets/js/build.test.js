@@ -36,10 +36,40 @@ test('join template gates the Turnstile script and widget on turnstileSiteKey', 
   assert.ok(tpl.includes('class="cf-turnstile" data-sitekey="{{ . }}"'), 'widget carries the configured site key');
 });
 
-test('default build (empty key) renders no Turnstile widget or script', () => {
-  const html = fs.readFileSync(DEFAULT_BUILD, 'utf8');
-  assert.ok(!html.includes('cf-turnstile'), 'no cf-turnstile element in the default build');
-  assert.ok(!html.includes(SCRIPT_HOST), 'no Turnstile script in the default build');
+// hugo.toml now carries a real site key, so the committed build legitimately
+// contains the widget — the negative case builds with the key blanked instead
+// of reading that artifact.
+test('build with an empty turnstileSiteKey renders no widget or script', {
+  skip: hasHugo ? false : 'hugo not installed in this environment',
+}, () => {
+  const dest = fs.mkdtempSync(path.join(os.tmpdir(), 'hugo-no-turnstile-'));
+  const res = spawnSync('hugo', ['--destination', dest], {
+    cwd: REPO_ROOT,
+    env: { ...process.env, HUGO_PARAMS_TURNSTILESITEKEY: '' },
+    encoding: 'utf8',
+  });
+  assert.equal(res.status, 0, `hugo build failed: ${res.stderr || res.stdout}`);
+  const html = fs.readFileSync(path.join(dest, 'join', 'index.html'), 'utf8');
+  assert.ok(!html.includes('cf-turnstile'), 'no cf-turnstile element when no key is configured');
+  assert.ok(!html.includes(SCRIPT_HOST), 'no Turnstile script when no key is configured');
+});
+
+// The password field must announce both bounds and must never carry a
+// maxlength: the browser clips pasted input to it silently, and on a masked
+// field the visitor cannot see what was lost. This is the regression guard —
+// it fails the moment someone "fixes" the missing attribute.
+test('password field states both bounds and carries no maxlength', () => {
+  // The minifier drops attribute quotes, so match both `id="password"` and
+  // `id=password` — the template and the built page are checked with one regex.
+  for (const [label, file] of [['template', TEMPLATE], ['default build', DEFAULT_BUILD]]) {
+    const html = fs.readFileSync(file, 'utf8');
+    const field = html.match(/<input[^>]*\bid="?password"?[\s>][^>]*>/);
+    assert.ok(field, `${label}: password field is present`);
+    assert.ok(!/maxlength/i.test(field[0]), `${label}: no maxlength truncates a pasted password`);
+    assert.match(field[0], /minlength="?10"?/, `${label}: minlength still matches the backend minimum`);
+    assert.match(html, /id="?password-hint"?[\s>]/, `${label}: the hint element is rendered`);
+    assert.match(html, /10 characters minimum, 128 bytes maximum/, `${label}: the hint states both bounds`);
+  }
 });
 
 test('build with turnstileSiteKey set renders the widget, script, and key', {

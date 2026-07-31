@@ -823,3 +823,65 @@ test('initSignupForm resets the single-use widget after a failed submit', async 
   await submit();
   assert.equal(turnstile.resetCount, 1, 'a failed submit resets the widget so a retry gets a fresh token');
 });
+
+// --- password length hint (initPasswordLengthHint) ---------------------------
+//
+// Coterie's ceiling is 128 UTF-8 bytes, so the warning has to count bytes — and
+// it is advisory: it may not touch the value the visitor typed. The field
+// carries no maxlength (build.test.js guards that), which is precisely why an
+// over-length password has to reach the field intact and be told about here.
+const BOUNDS_TEXT = '10 characters minimum, 128 bytes maximum.';
+
+function loadMainPasswordHint() {
+  const input = { value: '', addEventListener(type, h) { if (type === 'input') this.oninput = h; } };
+  const hint = { textContent: BOUNDS_TEXT, style: { color: 'var(--text-secondary)' } };
+  const form = {
+    addEventListener() {},
+    querySelector: (sel) => ({ '#password': input, '#password-hint': hint }[sel] || null),
+  };
+
+  const sandbox = {
+    document: { addEventListener() {}, getElementById: (id) => (id === 'signup-form' ? form : null) },
+    window: {},
+    console,
+    // A vm context carries only the ECMAScript built-ins; TextEncoder is a
+    // platform global and has to be handed in, like URL above.
+    TextEncoder,
+  };
+
+  const code = fs.readFileSync(path.join(__dirname, 'main.js'), 'utf8');
+  vm.createContext(sandbox);
+  vm.runInContext(code, sandbox, { filename: 'main.js' });
+  sandbox.initSignupForm();
+
+  return {
+    type: (value) => { input.value = value; input.oninput(); },
+    input,
+    hint,
+  };
+}
+
+test('over-length password warns without touching the value', () => {
+  const { type, input, hint } = loadMainPasswordHint();
+
+  const pasted = 'x'.repeat(200);
+  type(pasted);
+
+  assert.equal(input.value, pasted, 'all 200 characters stay in the field — nothing clips them');
+  assert.match(hint.textContent, /Too long: 200 bytes/, 'the warning reports the measured size and the limit');
+  assert.equal(hint.style.color, 'var(--warning)');
+});
+
+test('password warning counts UTF-8 bytes, not characters', () => {
+  const { type, hint } = loadMainPasswordHint();
+
+  // 40 emoji: 40 UTF-16 code units' worth of "length" per pair — 160 bytes.
+  // Anything counting characters would call this fine.
+  type('🔒'.repeat(40));
+  assert.match(hint.textContent, /Too long: 160 bytes/, 'multi-byte characters count for their byte size');
+
+  // 128 ASCII characters is exactly the ceiling: at the limit, not over it.
+  type('x'.repeat(128));
+  assert.equal(hint.textContent, BOUNDS_TEXT, 'a password at the ceiling is not warned about');
+  assert.equal(hint.style.color, 'var(--text-secondary)', 'and the hint returns to its normal styling');
+});
