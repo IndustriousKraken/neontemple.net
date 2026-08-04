@@ -1061,3 +1061,36 @@ test('announcement deep links still open, copy, and clear', () => {
   sandbox.closeModal();
   assert.equal(sandbox.location.hash, '', 'closing clears the announcement anchor');
 });
+
+test('copyLink degrades quietly when the clipboard is missing or refuses', async () => {
+  const sandbox = loadMainWithModal();
+  const btn = { textContent: 'Copy link' };
+  const URL_TO_COPY = 'https://neontemple.net/calendar/?m=2026-09#event-ev-42';
+
+  // An insecure context — plain HTTP, a file:// preview, some embedded webviews
+  // — exposes no navigator.clipboard at all. `?.` short-circuits the WHOLE
+  // chain, `.then` included, so the click is a silent no-op and not a throw.
+  sandbox.navigator = {};
+  assert.doesNotThrow(() => sandbox.copyLink(btn, URL_TO_COPY));
+  assert.equal(btn.textContent, 'Copy link', 'nothing to confirm, so nothing flashes');
+
+  // A write that rejects at runtime (permission denied, or a document that is
+  // not focused) must not surface as an unhandled rejection. Without the
+  // trailing .catch this assertion is what fails.
+  const rejections = [];
+  const record = (err) => rejections.push(err);
+  process.on('unhandledRejection', record);
+  try {
+    sandbox.navigator = {
+      clipboard: { writeText: () => Promise.reject(new Error('NotAllowedError')) },
+    };
+    sandbox.copyLink(btn, URL_TO_COPY);
+    // unhandledRejection fires once the microtask queue has drained.
+    await new Promise((resolve) => setImmediate(resolve));
+  } finally {
+    process.off('unhandledRejection', record);
+  }
+
+  assert.deepEqual(rejections, [], 'a refused clipboard write is swallowed');
+  assert.equal(btn.textContent, 'Copy link', 'and still flashes no confirmation');
+});
