@@ -21,6 +21,8 @@ const vm = require('node:vm');
 function loadCalendar() {
   let initCallback = null;
   let factory = null;
+  const hashListeners = [];
+  const opened = [];
 
   const sandbox = {
     document: {
@@ -33,9 +35,23 @@ function loadCalendar() {
         if (name === 'calendar') factory = fn;
       },
     },
-    // Desktop width so the default view is 'grid'; loadEvents guards
-    // window.contentStore, so leaving it undefined is fine.
-    window: { innerWidth: 1024 },
+    // Desktop width so the default view is 'grid'. contentStore is the map
+    // loadMonth writes fetched events into and openEventFromHash reads back;
+    // addEventListener catches init()'s hashchange registration.
+    window: {
+      innerWidth: 1024,
+      contentStore: { events: {}, announcements: {} },
+      addEventListener(event, cb) {
+        if (event === 'hashchange') hashListeners.push(cb);
+      },
+    },
+    // The deep-link path reads the fragment and the `m` query parameter.
+    location: { hash: '', search: '' },
+    URLSearchParams,
+    // main.js global that openEventModal delegates to; record what it opened.
+    showEventModal(id) {
+      opened.push(id);
+    },
     console,
   };
 
@@ -46,7 +62,7 @@ function loadCalendar() {
   assert.ok(typeof initCallback === 'function', 'alpine:init listener registered');
   initCallback();
   assert.ok(typeof factory === 'function', 'calendar component factory registered');
-  return { factory, sandbox };
+  return { factory, sandbox, hashListeners, opened };
 }
 
 const VALID_EVENTS = [
@@ -57,11 +73,11 @@ const INVALID_EVENT = { id: 3, title: 'Broken Record', start_time: 'not-a-date' 
 const MISSING_TIME_EVENT = { id: 4, title: 'No Time', start_time: undefined };
 
 function makeComponent() {
-  const { factory, sandbox } = loadCalendar();
+  const { factory, sandbox, hashListeners, opened } = loadCalendar();
   const component = factory();
   // June 2026 so the valid events fall inside the rendered month.
   component.currentDate = new Date(2026, 5, 15);
-  return { component, sandbox };
+  return { component, sandbox, hashListeners, opened };
 }
 
 function collectGridEventIds(days) {
@@ -374,4 +390,146 @@ test('searchFilteredEvents_tolerates_events_missing_optional_fields', () => {
     [20],
     'title-only event is included when the term matches its title',
   );
+});
+
+// --- event deep links: /calendar/?m=<YYYY-MM>#event-<id> --------------------
+
+const SEPT_EVENT = {
+  id: 'e-9',
+  title: 'Fall Workshop',
+  start_time: '2026-09-12T18:00:00Z',
+  timezone: 'UTC',
+};
+
+// Point the sandbox's location at a deep link. `search` is left empty when the
+// month hint is omitted, which is one of the malformed cases.
+function setDeepLink(sandbox, id, month) {
+  sandbox.location.hash = '#event-' + encodeURIComponent(id);
+  sandbox.location.search = month == null ? '' : `?m=${month}`;
+}
+
+test('parseMonthParam accepts YYYY-MM and discards everything else', () => {
+  const { parseMonthParam } = loadCalendar().sandbox;
+  // Spread into this realm: the vm context has its own Object.prototype, which
+  // deepStrictEqual compares.
+  const parsed = (v) => ({ ...parseMonthParam(v) });
+
+  assert.deepEqual(parsed('2026-09'), { year: 2026, month: 8 }, 'month is 0-indexed for Date');
+  assert.deepEqual(parsed('2026-01'), { year: 2026, month: 0 });
+  assert.deepEqual(parsed('2026-12'), { year: 2026, month: 11 });
+
+  // Absent, wrong shape, out-of-range month, and years outside a sane window.
+  // Each must yield null rather than reaching `new Date`, which would accept
+  // several of these and silently resolve them to something else.
+  for (const bad of [
+    undefined, null, '', '2026-13', '2026-00', 'garbage', '2026-1', '26-01',
+    '2026-09-01', ' 2026-09', '0001-05', '9999-05', '20260-9',
+  ]) {
+    assert.equal(parseMonthParam(bad), null, `${JSON.stringify(bad)} is discarded`);
+  }
+});
+
+test('a deep link loads its own month before opening the modal', async () => {
+  const { component, sandbox, opened } = makeComponent(); // displays June 2026
+  const order = [];
+  sandbox.CoterieAPI = {
+    async getEvents() {
+      order.push('fetch');
+      return [SEPT_EVENT];
+    },
+  };
+  sandbox.showEventModal = (id) => {
+    order.push('open');
+    opened.push(id);
+  };
+  setDeepLink(sandbox, SEPT_EVENT.id, '2026-09');
+
+  await component.init();
+
+  // Ordering, not just the end state: an implementation that opened first and
+  // loaded second would still end up with the modal open once the month is
+  // cached, so the sequence is what the assertion has to pin down.
+  assert.deepEqual(order, ['fetch', 'open'], 'the linked month is fetched before the modal opens');
+  assert.deepEqual(opened, [SEPT_EVENT.id], 'the linked event opened');
+  assert.equal(component.currentYear, 2026);
+  assert.equal(component.currentMonth, 8, 'the calendar moved to the linked month');
+});
+
+test('an unknown event id opens nothing and leaves the calendar rendered', async () => {
+  const { component, sandbox, opened } = makeComponent();
+  sandbox.CoterieAPI = {
+    async getEvents() {
+      return [SEPT_EVENT];
+    },
+  };
+  setDeepLink(sandbox, 'not-a-real-id', '2026-09');
+
+  await component.init();
+
+  assert.deepEqual(opened, [], 'no modal opened for an id absent from the month');
+  assert.equal(component.currentMonth, 8, 'the visitor is left on the linked month');
+  assert.equal(component.error, null, 'a missing id is not an error');
+  assert.ok(
+    collectGridEventIds(component.calendarDays).includes(SEPT_EVENT.id),
+    'the month that did load is still rendered',
+  );
+});
+
+test('a malformed month hint falls back to the current month without throwing', async () => {
+  for (const bad of [null, '2026-13', 'garbage', '2026-1', '0001-05']) {
+    const { component, sandbox, opened } = makeComponent(); // displays June 2026
+    sandbox.CoterieAPI = {
+      async getEvents() {
+        return [SEPT_EVENT];
+      },
+    };
+    setDeepLink(sandbox, SEPT_EVENT.id, bad);
+
+    await assert.doesNotReject(() => component.init(), `m=${bad} must not throw`);
+
+    assert.equal(component.currentYear, 2026, `m=${bad} keeps the current year`);
+    assert.equal(component.currentMonth, 5, `m=${bad} falls back to the displayed month`);
+    assert.equal(component.error, null, `m=${bad} leaves the calendar usable`);
+    assert.equal(component.calendarDays.length, 30 + component.firstDayOfMonth, 'June still renders');
+    // The event is in the store (the June range returned it) so the fragment
+    // still resolves — the fallback is about the month, not about failing.
+    assert.deepEqual(opened, [SEPT_EVENT.id]);
+  }
+});
+
+test('a hashchange while the calendar is open opens that event', async () => {
+  const { component, sandbox, hashListeners, opened } = makeComponent();
+  sandbox.CoterieAPI = {
+    async getEvents() {
+      return [SEPT_EVENT];
+    },
+  };
+
+  await component.init(); // no fragment yet: plain load of the current month
+  assert.deepEqual(opened, [], 'nothing opened without a fragment');
+  assert.equal(hashListeners.length, 1, 'init registered a hashchange listener');
+
+  setDeepLink(sandbox, SEPT_EVENT.id, '2026-09');
+  await hashListeners[0]();
+
+  assert.deepEqual(opened, [SEPT_EVENT.id], 'the pasted fragment opened its event');
+  assert.equal(component.currentMonth, 8, 'and navigated to its month');
+});
+
+test('an id with URL-significant characters survives the fragment round trip', async () => {
+  const ODD_ID = 'a b/c?d#e&f';
+  const { component, sandbox, opened } = makeComponent();
+  sandbox.CoterieAPI = {
+    async getEvents() {
+      return [{ ...SEPT_EVENT, id: ODD_ID }];
+    },
+  };
+  setDeepLink(sandbox, ODD_ID, '2026-09');
+
+  // The `?` and `#` in the id must not be read as a query/fragment boundary,
+  // which is what encodeURIComponent on write and decodeURIComponent on read buy.
+  assert.ok(!sandbox.location.hash.includes('?'), 'the id is written encoded');
+  await component.init();
+
+  assert.deepEqual(opened, [ODD_ID], 'the decoded id matched the stored event');
 });
