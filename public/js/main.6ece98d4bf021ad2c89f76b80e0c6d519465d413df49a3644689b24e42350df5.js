@@ -215,19 +215,13 @@ function closeModal() {
  * Copy a direct link to the clipboard and flash the confirmation on its button.
  * Shared by the event and announcement modals so "Copied!" has exactly one
  * implementation.
- *
- * `?.` short-circuits the WHOLE chain, `.then` included, so an insecure context
- * with no navigator.clipboard is already a silent no-op rather than a throw. The
- * write itself can still reject at runtime — permission denied, or a document
- * that isn't focused — which is what the catch is for: no confirmation flash,
- * but no unhandled rejection either.
  */
 function copyLink(btn, url) {
   navigator.clipboard?.writeText(url).then(() => {
     const label = btn.textContent;
     btn.textContent = 'Copied!';
     setTimeout(() => { btn.textContent = label; }, 1500);
-  }).catch(() => {});
+  });
 }
 
 /**

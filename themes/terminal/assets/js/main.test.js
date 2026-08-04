@@ -24,6 +24,20 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
+// baseof.html loads calendar.js before main.js on every page, so calendar.js's
+// top-level helpers — `eventDayKey`, which main.js's link builder calls — are
+// browser globals by the time anything in main.js runs. Mirror that here rather
+// than stubbing a second copy: calendar.js otherwise only registers an
+// alpine:init listener, which the stubbed document never fires.
+function runScripts(sandbox) {
+  vm.createContext(sandbox);
+  for (const file of ['calendar.js', 'main.js']) {
+    const code = fs.readFileSync(path.join(__dirname, file), 'utf8');
+    vm.runInContext(code, sandbox, { filename: file });
+  }
+  return sandbox;
+}
+
 function loadMain() {
   // escapeHtml() does `div.textContent = str; return div.innerHTML`. Emulate a
   // browser element whose innerHTML reflects the HTML-escaped text content
@@ -59,10 +73,7 @@ function loadMain() {
     URL,
   };
 
-  const code = fs.readFileSync(path.join(__dirname, 'main.js'), 'utf8');
-  vm.createContext(sandbox);
-  vm.runInContext(code, sandbox, { filename: 'main.js' });
-  return sandbox;
+  return runScripts(sandbox);
 }
 
 // The value between the first `src="` and the next `"`. Because escapeAttr
@@ -431,13 +442,46 @@ function loadMainWithModal() {
     };
   };
 
+  // A button reads its own label back before flashing "Copied!", so unlike the
+  // modal panes this stub needs a textContent getter as well as a setter.
+  const makeButton = () => {
+    let text = '';
+    return {
+      set textContent(value) {
+        text = String(value);
+      },
+      get textContent() {
+        return text;
+      },
+    };
+  };
+
   const els = {
     'modal-image-container': makeEl(),
     'modal-title': makeEl(),
     'modal-meta': makeEl(),
     'modal-content': makeEl(),
     'detail-modal': makeEl(),
+    'modal-copy-link': makeButton(),
   };
+
+  // A mutable stand-in for window.location. history.replaceState resolves what
+  // it is handed against the current href and writes the parts back, so the
+  // deep-link assertions read the same pathname/search/hash a browser would.
+  const location = {};
+  const navigate = (url) => {
+    const next = new URL(url, location.href || 'https://neontemple.net/calendar/');
+    Object.assign(location, {
+      href: next.href,
+      origin: next.origin,
+      pathname: next.pathname,
+      search: next.search,
+      hash: next.hash,
+    });
+  };
+  navigate('https://neontemple.net/calendar/');
+
+  const copied = [];
 
   const sandbox = {
     document: {
@@ -448,15 +492,24 @@ function loadMainWithModal() {
     },
     window: {},
     console,
-    // showAnnouncementModal reflects the open announcement in the URL.
-    history: { replaceState() {} },
+    // Both modals reflect what is open in the URL, and clear it on close.
+    location,
+    history: { replaceState: (_state, _title, url) => navigate(url) },
+    navigator: {
+      clipboard: {
+        writeText(value) {
+          copied.push(value);
+          return Promise.resolve();
+        },
+      },
+    },
+    setTimeout,
     URL,
   };
 
-  const code = fs.readFileSync(path.join(__dirname, 'main.js'), 'utf8');
-  vm.createContext(sandbox);
-  vm.runInContext(code, sandbox, { filename: 'main.js' });
+  runScripts(sandbox);
   sandbox.els = els;
+  sandbox.copied = copied;
   return sandbox;
 }
 
@@ -884,4 +937,160 @@ test('password warning counts UTF-8 bytes, not characters', () => {
   type('x'.repeat(128));
   assert.equal(hint.textContent, BOUNDS_TEXT, 'a password at the ceiling is not warned about');
   assert.equal(hint.style.color, 'var(--text-secondary)', 'and the hint returns to its normal styling');
+});
+
+// --- event deep links --------------------------------------------------------
+//
+// An open event modal reflects itself in the URL as
+// /calendar/?m=<YYYY-MM>#event-<id> and offers a control that copies it. The
+// month is what makes such a link resolvable at all — the calendar fetches one
+// month at a time and the public API has no single-event lookup — so it must
+// name the event's OWN month, not the viewer's.
+
+const LINKED_EVENT = {
+  id: 'ev-42',
+  title: 'CTF Night',
+  start_time: '2026-09-12T18:00:00Z',
+  timezone: 'UTC',
+};
+
+test('event link names the month in the event\'s own timezone', () => {
+  const { eventLinkUrl } = loadMainWithModal();
+
+  // 2026-11-01T00:00Z is Sat Oct 31, 8pm in New York (still EDT — DST ends the
+  // next morning). It is November in UTC and in every zone east of Eastern, so
+  // deriving the month from the instant, or from the month on screen, would
+  // build a link that resolves to the wrong month. It must say October.
+  assert.equal(
+    eventLinkUrl({ id: 'ev-halloween', start_time: '2026-11-01T00:00:00Z', timezone: 'America/New_York' }),
+    'https://neontemple.net/calendar/?m=2026-10#event-ev-halloween',
+    'the boundary event links to its own month',
+  );
+
+  // An unremarkable mid-month event is unaffected by the same derivation.
+  assert.equal(
+    eventLinkUrl(LINKED_EVENT),
+    'https://neontemple.net/calendar/?m=2026-09#event-ev-42',
+  );
+
+  // Degraded inputs: no id means no anchor and so no link at all; an
+  // unparseable start time drops the month hint but keeps a usable fragment.
+  assert.equal(eventLinkUrl({ start_time: '2026-09-12T18:00:00Z' }), null, 'no id, no link');
+  assert.equal(
+    eventLinkUrl({ id: 'ev-bad', start_time: 'not-a-date' }),
+    'https://neontemple.net/calendar/#event-ev-bad',
+  );
+});
+
+test('opening an event modal writes its link and closing clears it', () => {
+  const sandbox = loadMainWithModal();
+  sandbox.window.contentStore.events[LINKED_EVENT.id] = LINKED_EVENT;
+
+  sandbox.showEventModal(LINKED_EVENT.id);
+
+  assert.equal(sandbox.location.pathname, '/calendar/');
+  assert.equal(sandbox.location.search, '?m=2026-09', 'the URL carries the event\'s month');
+  assert.equal(sandbox.location.hash, '#event-ev-42', 'and the event fragment');
+
+  // The copy control puts the absolute URL on the clipboard, so a pasted value
+  // works off-site.
+  const btn = sandbox.els['modal-copy-link'];
+  assert.equal(typeof btn.onclick, 'function', 'the modal binds a copy handler');
+  btn.onclick();
+  assert.deepEqual(sandbox.copied, ['https://neontemple.net/calendar/?m=2026-09#event-ev-42']);
+  assert.ok(sandbox.els['modal-meta'].innerHTML.includes('Copy link'), 'the button is rendered in modal-meta');
+
+  sandbox.closeModal();
+
+  assert.equal(sandbox.location.hash, '', 'closing drops the fragment');
+  assert.equal(sandbox.location.search, '', 'and the month parameter');
+  assert.equal(sandbox.location.pathname, '/calendar/', 'leaving the calendar page itself');
+});
+
+test('an event id with URL-significant characters round-trips and never reaches markup raw', () => {
+  const ODD_ID = 'a b/c?d#e&f"<g>';
+  const sandbox = loadMainWithModal();
+  const event = { ...LINKED_EVENT, id: ODD_ID };
+  sandbox.window.contentStore.events[ODD_ID] = event;
+
+  sandbox.showEventModal(ODD_ID);
+
+  // The `?` and `#` must be encoded or they would be read as a new query /
+  // fragment boundary, and the round trip is what the reader relies on.
+  assert.equal(sandbox.location.search, '?m=2026-09', 'the id\'s ? did not start a query');
+  const fragment = sandbox.location.hash.match(/^#event-(.+)$/);
+  assert.ok(fragment, 'an #event- fragment is present');
+  assert.equal(decodeURIComponent(fragment[1]), ODD_ID, 'the id survives the round trip');
+
+  // The id is an API value: it must not appear in the modal's markup as-is, and
+  // the copy handler is a closure rather than an interpolated onclick — that
+  // attribute is decoded twice (HTML, then JS).
+  const meta = sandbox.els['modal-meta'].innerHTML;
+  assert.ok(!meta.includes(ODD_ID), 'the raw id is not interpolated into the modal markup');
+  assert.ok(!meta.includes('<g>'), 'no tag from the id survives as markup');
+  assert.ok(!/onclick/i.test(meta), 'the copy button carries no inline handler');
+
+  // The copied link still carries the encoded id.
+  sandbox.els['modal-copy-link'].onclick();
+  assert.equal(sandbox.copied[0], `https://neontemple.net/calendar/?m=2026-09#event-${encodeURIComponent(ODD_ID)}`);
+});
+
+test('announcement deep links still open, copy, and clear', () => {
+  const sandbox = loadMainWithModal();
+  const announcement = {
+    id: 'a-7',
+    title: 'Doors Open Late',
+    content: 'plain text',
+    published_at: '2026-06-20T19:30:00Z',
+  };
+  sandbox.window.contentStore.announcements[announcement.id] = announcement;
+
+  sandbox.showAnnouncementModal(announcement.id);
+  assert.equal(sandbox.location.hash, '#announcement-a-7', 'the announcement anchor is written');
+
+  // Reading it back from the URL opens the same modal — the pasted-link path.
+  sandbox.els['modal-title'].textContent = '';
+  sandbox.openAnnouncementFromHash();
+  assert.ok(sandbox.els['modal-title'].innerHTML.includes('Doors Open Late'), 'the fragment re-opens it');
+
+  // Copy still yields the announcements-page form, even from another page.
+  const btn = { textContent: 'Copy link' };
+  sandbox.copyAnnouncementLink(btn);
+  assert.deepEqual(sandbox.copied, ['https://neontemple.net/announcements/#announcement-a-7']);
+
+  sandbox.closeModal();
+  assert.equal(sandbox.location.hash, '', 'closing clears the announcement anchor');
+});
+
+test('copyLink degrades quietly when the clipboard is missing or refuses', async () => {
+  const sandbox = loadMainWithModal();
+  const btn = { textContent: 'Copy link' };
+  const URL_TO_COPY = 'https://neontemple.net/calendar/?m=2026-09#event-ev-42';
+
+  // An insecure context — plain HTTP, a file:// preview, some embedded webviews
+  // — exposes no navigator.clipboard at all. `?.` short-circuits the WHOLE
+  // chain, `.then` included, so the click is a silent no-op and not a throw.
+  sandbox.navigator = {};
+  assert.doesNotThrow(() => sandbox.copyLink(btn, URL_TO_COPY));
+  assert.equal(btn.textContent, 'Copy link', 'nothing to confirm, so nothing flashes');
+
+  // A write that rejects at runtime (permission denied, or a document that is
+  // not focused) must not surface as an unhandled rejection. Without the
+  // trailing .catch this assertion is what fails.
+  const rejections = [];
+  const record = (err) => rejections.push(err);
+  process.on('unhandledRejection', record);
+  try {
+    sandbox.navigator = {
+      clipboard: { writeText: () => Promise.reject(new Error('NotAllowedError')) },
+    };
+    sandbox.copyLink(btn, URL_TO_COPY);
+    // unhandledRejection fires once the microtask queue has drained.
+    await new Promise((resolve) => setImmediate(resolve));
+  } finally {
+    process.off('unhandledRejection', record);
+  }
+
+  assert.deepEqual(rejections, [], 'a refused clipboard write is swallowed');
+  assert.equal(btn.textContent, 'Copy link', 'and still flashes no confirmation');
 });
