@@ -4,10 +4,10 @@
        would give every page the first page's preview. */ -}}
 {{- $title := cond .IsHome site.Title (printf "%s | %s" .Title site.Title) }}
 {{- $description := or .Description site.Params.description }}
-{{- /* baseURL without its trailing slash. `relativeURLs = true` makes absURL
-       emit page-relative URLs, so absolute values are built from site.BaseURL
-       explicitly rather than assumed — a crawler reads og:url and og:image out
-       of context and resolves neither against the page it fetched. */}}
+{{- /* baseURL without its trailing slash. Built explicitly rather than assumed:
+       a crawler reads og:url and og:image out of context and resolves neither
+       against the page it fetched, so these stay absolute regardless of how the
+       rest of the site's URLs are emitted. */}}
 {{- $base := strings.TrimSuffix "/" site.BaseURL }}
 {{- $url := or .Params.canonical .Permalink }}
 {{- $image := or .Params.image (printf "%s/img/share-card.png" $base) }}

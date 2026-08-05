@@ -48,14 +48,14 @@ fighting them.
 
 ## Tasks
 
-- [ ] Determine whether anything still requires `relativeURLs = true`. Local
+- [x] Determine whether anything still requires `relativeURLs = true`. Local
   preview via `hugo server` rewrites `baseURL` and does not need it.
-- [ ] Emit absolute asset URLs, globally if nothing depends on the current
+- [x] Emit absolute asset URLs, globally if nothing depends on the current
   setting, otherwise at least for `404.html` and the share-page template.
-- [ ] Rebuild `public/` so the committed output matches source.
-- [ ] Verify a 404 at a nested path loads its stylesheet: request a missing path
+- [x] Rebuild `public/` so the committed output matches source.
+- [x] Verify a 404 at a nested path loads its stylesheet: request a missing path
   two or more segments deep and assert the referenced CSS returns 200.
-- [ ] Verify `/e/<id>/` and `/a/<id>/` still load their stylesheet after the
+- [x] Verify `/e/<id>/` and `/a/<id>/` still load their stylesheet after the
   change.
-- [ ] Add a check that a generated share page's asset URLs resolve independently
+- [x] Add a check that a generated share page's asset URLs resolve independently
   of path depth, so the coincidence cannot quietly return.

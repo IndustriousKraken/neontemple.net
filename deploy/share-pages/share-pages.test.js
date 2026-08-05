@@ -394,6 +394,32 @@ test('on-request and refresher output for the same item are byte-identical', asy
     'one template, one fill path — this is the assertion that keeps them from drifting');
 });
 
+test('a generated page loads its assets from any depth, not just from /e/<id>/', async (t) => {
+  // The template's chrome used to link `../../css/…`, which resolved only
+  // because /_share/template/ and /e/<id>/ are both two segments deep. Nothing
+  // enforced that, and the symptom — an unstyled page — would have shown up on
+  // a shared link. Asset URLs must not depend on where the page is written.
+  const { cfg } = makeEnv();
+  stubApi(t, cfg, { events: [PUBLIC_EVENT], announcements: [ANNOUNCEMENT] });
+  await share.reconcile(cfg, NOW);
+
+  const assetUrls = (html) => [...html.matchAll(/(?:href|src)=(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi)]
+    .map((m) => m[1] ?? m[2] ?? m[3])
+    .filter((url) => /\.(css|js)$/.test(url) && !/^https?:\/\//i.test(url));
+
+  for (const [kind, id] of [['e', 'ev-42'], ['a', 'an-7']]) {
+    const assets = assetUrls(read(pageFile(cfg, kind, id)));
+    assert.ok(assets.length >= 2, `${kind}/${id}: the chrome links its stylesheet and scripts`);
+    for (const asset of assets) {
+      const here = new URL(asset, `https://site.example.test/${kind}/${id}/`).pathname;
+      const deeper = new URL(asset, 'https://site.example.test/one/two/three/four/').pathname;
+      assert.equal(here, deeper, `${kind}/${id}: ${asset} does not depend on the page's depth`);
+      // And it is a file the site build actually publishes.
+      assert.ok(fs.existsSync(path.join(REPO_ROOT, 'public', here)), `${here} exists in the build`);
+    }
+  }
+});
+
 test('an id that is not a public item returns not-found and leaves no file behind', async (t) => {
   const { cfg } = makeEnv();
   stubApi(t, cfg, { events: [PUBLIC_EVENT] });

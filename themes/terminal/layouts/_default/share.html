@@ -12,12 +12,12 @@
      comments would be the obvious way to mark regions, but `hugo --minify`
      strips comments and leaves unknown elements alone.
 
-  2. The output path has the SAME depth as a share page (`/_share/template/` vs
-     `/e/<id>/`). `relativeURLs = true` rewrites the chrome's hrefs relative to
-     the rendered page's own location, so equal depth is what makes `../../css/…`
-     and `../../calendar/` resolve correctly once the filled copy is written to
-     /e/<id>/index.html. Moving this page to another depth silently breaks every
-     generated page's stylesheet and navigation.
+  2. The chrome's URLs are root-relative (`/css/…`, `/calendar/`), so a filled
+     copy resolves them identically wherever it is written. This template used to
+     depend on sitting at the same depth as `/e/<id>/` — `relativeURLs = true`
+     rewrote the hrefs relative to the rendered page's own location, so
+     `../../css/…` worked only by the coincidence of equal depth. That setting is
+     gone; do not reintroduce it, and keep the links below root-relative.
 */ -}}
 {{ define "main" }}
 <article class="share-page">

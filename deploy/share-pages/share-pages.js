@@ -43,8 +43,9 @@ function loadConfig(env = process.env) {
   };
 }
 
-// Hugo builds the template to this path; see themes/terminal/layouts/_default/
-// share.html for why its depth matches a share page's.
+// Hugo builds the template to this path. Its chrome's URLs are root-relative,
+// so a filled copy loads the same stylesheet and navigation from any path it is
+// written to; see themes/terminal/layouts/_default/share.html.
 const templatePath = (cfg) => path.join(cfg.root, '_share', 'template', 'index.html');
 
 // The refresher's own crawlable index. The calendar's links to events are

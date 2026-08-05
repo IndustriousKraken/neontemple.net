@@ -2,7 +2,12 @@ baseURL = 'https://theneontemple.com/'
 languageCode = 'en-us'
 title = 'Neon Temple'
 theme = 'terminal'
-relativeURLs = true
+# No `relativeURLs`: URLs are emitted root-relative (`/css/style.<hash>.css`) so
+# they resolve the same wherever a document is served from. Caddy serves
+# 404.html for a missing path at ANY depth, and the share-page template is
+# filled into /e/<id>/ and /a/<id>/ — page-relative hrefs broke the first and
+# coupled the second to its own depth. `hugo server` rewrites baseURL, so local
+# preview needs nothing here.
 
 [params]
   description = 'A cybersecurity guild in Tampa Bay. Not a cult!'

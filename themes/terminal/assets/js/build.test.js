@@ -18,6 +18,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const http = require('node:http');
 const { spawnSync } = require('node:child_process');
 
 const REPO_ROOT = path.join(__dirname, '..', '..', '..', '..');
@@ -170,7 +171,7 @@ test('the metadata partial is not cached and marks nothing safe', () => {
   assert.ok(!/\|\s*safe/.test(partial), 'titles and descriptions are free text, never marked safe');
 });
 
-test('the share template is built where the refresher looks for it, at a share page depth', () => {
+test('the share template is built where the refresher looks for it, with depth-independent URLs', () => {
   const built = path.join(REPO_ROOT, 'public', '_share', 'template', 'index.html');
   assert.ok(fs.existsSync(built), 'the Hugo build emits the fill template');
   const html = fs.readFileSync(built, 'utf8');
@@ -184,11 +185,13 @@ test('the share template is built where the refresher looks for it, at a share p
     assert.match(html, new RegExp(`<share-${region}>[\\s\\S]*</share-${region}>`), `${region} region survives minification`);
   }
 
-  // The chrome's URLs are rewritten relative to the rendered page's own
-  // location, so the template has to sit at the same depth as /e/<id>/ or every
-  // generated page loses its stylesheet and navigation.
-  assert.match(html, /href=\.\.\/\.\.\/css\/style\./, 'stylesheet resolves from two levels down');
-  assert.match(html, /href=\.\.\/\.\.\/calendar\//, 'and so does the link onward');
+  // The chrome's URLs are root-relative, so a filled copy resolves them the
+  // same wherever it is written. They used to be page-relative (`../../css/…`),
+  // which worked only because /_share/template/ happened to sit at the same
+  // depth as /e/<id>/ — a coincidence nothing enforced.
+  assert.match(html, /href=\/css\/style\./, 'stylesheet does not depend on the page depth');
+  assert.match(html, /href=\/calendar\//, 'and neither does the link onward');
+  assert.ok(!/(?:href|src)=["']?\.\.?\//.test(html), 'no page-relative URL survives in the template');
 
   // It is a template, not a page: nothing should index it.
   const sitemap = fs.readFileSync(path.join(REPO_ROOT, 'public', 'sitemap.xml'), 'utf8');
@@ -197,4 +200,52 @@ test('the share template is built where the refresher looks for it, at a share p
   assert.match(robots, /Disallow: \/_share\//);
   assert.match(robots, /Sitemap: https:\/\/theneontemple\.com\/share-sitemap\.xml/,
     'the generated pages are advertised, or a crawler never reaches one');
+});
+
+/**
+ * The 404 page is served for EVERY missing path, at every depth — Caddy's
+ * `handle_errors` block rewrites any not-found request to /404.html. Assets
+ * linked relative to the requested URL therefore 404 too, and the themed page
+ * arrives unstyled. This serves the committed build under that same rule and
+ * fetches what the page asks for, from the URL a visitor would have requested.
+ */
+
+const PUBLIC = path.join(REPO_ROOT, 'public');
+
+/** The site's own assets a page loads — stylesheets and local scripts. */
+function assetUrls(html) {
+  return [...html.matchAll(/(?:href|src)=(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi)]
+    .map((m) => m[1] ?? m[2] ?? m[3])
+    .filter((url) => /\.(css|js)$/.test(url) && !/^https?:\/\//i.test(url));
+}
+
+/** public/ served the way the deploy serves it: any miss returns 404.html. */
+function serveLikeCaddy() {
+  return http.createServer((req, res) => {
+    const pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
+    let file = path.join(PUBLIC, pathname);
+    if (fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, 'index.html');
+    const found = file.startsWith(PUBLIC) && fs.existsSync(file) && fs.statSync(file).isFile();
+    res.writeHead(found ? 200 : 404);
+    res.end(fs.readFileSync(found ? file : path.join(PUBLIC, '404.html')));
+  });
+}
+
+test('a 404 served at any depth loads the assets it links', async (t) => {
+  const server = serveLikeCaddy();
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const origin = `http://127.0.0.1:${server.address().port}`;
+
+  for (const missing of ['/definitely-not-a-page/', '/a/deep/missing/path/']) {
+    const res = await fetch(origin + missing);
+    assert.equal(res.status, 404, `${missing} is a 404`);
+    const assets = assetUrls(await res.text());
+    assert.ok(assets.length >= 2, `${missing}: the themed page links its stylesheet and scripts`);
+    for (const asset of assets) {
+      // Resolved against the URL the browser asked for, not against /404.html.
+      const resolved = new URL(asset, origin + missing);
+      assert.equal((await fetch(resolved)).status, 200, `${missing}: ${asset} loads`);
+    }
+  }
 });
