@@ -482,6 +482,9 @@ function loadMainWithModal() {
   navigate('https://neontemple.net/calendar/');
 
   const copied = [];
+  // Copying a link also primes its share page. Record the requests so the prime
+  // can be asserted, and so nothing in the copy path depends on a real network.
+  const primed = [];
 
   const sandbox = {
     document: {
@@ -503,6 +506,10 @@ function loadMainWithModal() {
         },
       },
     },
+    fetch(url, options) {
+      primed.push({ url, options });
+      return Promise.resolve({ ok: true });
+    },
     setTimeout,
     URL,
   };
@@ -510,6 +517,7 @@ function loadMainWithModal() {
   runScripts(sandbox);
   sandbox.els = els;
   sandbox.copied = copied;
+  sandbox.primed = primed;
   return sandbox;
 }
 
@@ -992,12 +1000,13 @@ test('opening an event modal writes its link and closing clears it', () => {
   assert.equal(sandbox.location.search, '?m=2026-09', 'the URL carries the event\'s month');
   assert.equal(sandbox.location.hash, '#event-ev-42', 'and the event fragment');
 
-  // The copy control puts the absolute URL on the clipboard, so a pasted value
-  // works off-site.
+  // The copy control yields the SHARE PAGE, not the calendar deep link it just
+  // wrote to the address bar: a crawler never receives the fragment, so a
+  // preview of that link could only ever describe the calendar.
   const btn = sandbox.els['modal-copy-link'];
   assert.equal(typeof btn.onclick, 'function', 'the modal binds a copy handler');
   btn.onclick();
-  assert.deepEqual(sandbox.copied, ['https://neontemple.net/calendar/?m=2026-09#event-ev-42']);
+  assert.deepEqual(sandbox.copied, ['https://neontemple.net/e/ev-42/']);
   assert.ok(sandbox.els['modal-meta'].innerHTML.includes('Copy link'), 'the button is rendered in modal-meta');
 
   sandbox.closeModal();
@@ -1030,9 +1039,10 @@ test('an event id with URL-significant characters round-trips and never reaches 
   assert.ok(!meta.includes('<g>'), 'no tag from the id survives as markup');
   assert.ok(!/onclick/i.test(meta), 'the copy button carries no inline handler');
 
-  // The copied link still carries the encoded id.
+  // The copied share URL carries the encoded id, so no character in it can be
+  // read as a path boundary.
   sandbox.els['modal-copy-link'].onclick();
-  assert.equal(sandbox.copied[0], `https://neontemple.net/calendar/?m=2026-09#event-${encodeURIComponent(ODD_ID)}`);
+  assert.equal(sandbox.copied[0], `https://neontemple.net/e/${encodeURIComponent(ODD_ID)}/`);
 });
 
 test('announcement deep links still open, copy, and clear', () => {
@@ -1053,13 +1063,60 @@ test('announcement deep links still open, copy, and clear', () => {
   sandbox.openAnnouncementFromHash();
   assert.ok(sandbox.els['modal-title'].innerHTML.includes('Doors Open Late'), 'the fragment re-opens it');
 
-  // Copy still yields the announcements-page form, even from another page.
+  // Copy now yields the announcement's SHARE page, not the announcements page
+  // carrying the fragment — the same reason the event control stopped sharing
+  // one. The fragment itself is unchanged; it is still in-page state.
   const btn = { textContent: 'Copy link' };
   sandbox.copyAnnouncementLink(btn);
-  assert.deepEqual(sandbox.copied, ['https://neontemple.net/announcements/#announcement-a-7']);
+  assert.deepEqual(sandbox.copied, ['https://neontemple.net/a/a-7/']);
 
   sandbox.closeModal();
   assert.equal(sandbox.location.hash, '', 'closing clears the announcement anchor');
+});
+
+test('using a copy control primes the share page without blocking the clipboard', () => {
+  const sandbox = loadMainWithModal();
+  sandbox.window.contentStore.events[LINKED_EVENT.id] = LINKED_EVENT;
+  sandbox.showEventModal(LINKED_EVENT.id);
+
+  // A prime that never settles. The clipboard write must not be waiting on it:
+  // if the copy were sequenced behind the network, this test would record no
+  // copied value at all.
+  const requests = [];
+  sandbox.fetch = (url, options) => {
+    requests.push({ url, options });
+    return new Promise(() => {});
+  };
+
+  sandbox.els['modal-copy-link'].onclick();
+
+  assert.deepEqual(sandbox.copied, ['https://neontemple.net/e/ev-42/'], 'the copy completed');
+  assert.equal(requests.length, 1, 'and the share page was requested');
+  assert.equal(requests[0].url, 'https://neontemple.net/e/ev-42/', 'the prime targets the copied URL');
+
+  // The announcement control primes too — both had the same defect.
+  const announcement = { id: 'a-9', title: 'Notice', content: 'text', published_at: '2026-06-20T19:30:00Z' };
+  sandbox.window.contentStore.announcements[announcement.id] = announcement;
+  sandbox.showAnnouncementModal(announcement.id);
+  sandbox.copyAnnouncementLink({ textContent: 'Copy link' });
+  assert.equal(requests[1].url, 'https://neontemple.net/a/a-9/');
+});
+
+test('a failed prime does not break the copy, and a missing fetch is a no-op', () => {
+  const sandbox = loadMainWithModal();
+  sandbox.window.contentStore.events[LINKED_EVENT.id] = LINKED_EVENT;
+  sandbox.showEventModal(LINKED_EVENT.id);
+
+  // A prime is best-effort: the on-request path still generates the page for
+  // whoever fetches the pasted link.
+  sandbox.fetch = () => Promise.reject(new Error('offline'));
+  assert.doesNotThrow(() => sandbox.els['modal-copy-link'].onclick());
+  assert.deepEqual(sandbox.copied, ['https://neontemple.net/e/ev-42/']);
+
+  // No fetch at all (an old browser) must not throw on the way to the clipboard.
+  delete sandbox.fetch;
+  assert.doesNotThrow(() => sandbox.els['modal-copy-link'].onclick());
+  assert.equal(sandbox.copied.length, 2, 'the copy still happened');
 });
 
 test('copyLink degrades quietly when the clipboard is missing or refuses', async () => {

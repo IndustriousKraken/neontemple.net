@@ -17,10 +17,25 @@ Commands:
 
 - `hugo server` — serve the site locally with live reload for development.
 - `hugo` — build the static site into `public/`.
-- `npm test` — run the theme's JS unit tests (`node --test
-  "themes/terminal/assets/js/*.test.js"`).
+- `npm test` — run the theme's JS unit tests and the share-page refresher's
+  (`node --test "themes/terminal/assets/js/*.test.js"
+  "deploy/share-pages/*.test.js"`).
 - `./deploy.sh` — build and rsync `public/` to the coterie server's Caddy web
-  root (`/srv/theneontemple.com`).
+  root (`/srv/theneontemple.com`). It runs `rsync --delete`, so every
+  server-generated path is excluded by name there; adding one without its
+  exclude means the next deploy destroys it.
+
+## Server-side pieces
+
+Two things are generated on the web host rather than by the build, each with its
+own systemd timer and README:
+
+- [`deploy/yt-feed-cache/`](./deploy/yt-feed-cache/) — the cached YouTube feed
+  the homepage slider reads.
+- [`deploy/share-pages/`](./deploy/share-pages/) — `/e/<id>/` and `/a/<id>/`
+  share pages, one per public event and announcement, so a link to a specific
+  item previews as that item. Includes the Caddy block, the on-request
+  generator, and the immediate-purge command for a mistakenly published item.
 
 ## Configuration
 

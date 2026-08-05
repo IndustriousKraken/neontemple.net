@@ -101,10 +101,17 @@ for any events fetch.
 ### Requirement: A calendar event has a shareable direct link
 
 An open event modal SHALL reflect the event in the page URL as a calendar URL
-carrying a month parameter and an `#event-<id>` fragment, and SHALL offer a copy
-control that puts that URL on the clipboard. The event modal SHALL match the
-announcement modal's existing affordance rather than inventing a second shape for
-the same idea.
+carrying a month parameter and an `#event-<id>` fragment, so the address bar
+records which event is open and the browser's history controls work. It SHALL
+offer a copy control that puts the event's **share page** URL on the clipboard.
+
+The copy control SHALL copy the share page URL, not the calendar deep link. The
+two serve different purposes and only one of them survives being pasted
+elsewhere: the calendar deep link carries the open event in a fragment, which a
+crawler never receives, so a preview of it can only ever describe the calendar.
+The share page is a real page per event and previews as that event. Reflecting
+state in the address bar and producing a link fit to share are two jobs, and this
+control does the second.
 
 The month parameter SHALL be derived from the event's own start time in the
 event's own timezone — the same day-bucketing the calendar grid uses — and SHALL
@@ -147,7 +154,13 @@ followed from elsewhere.
 
 - **WHEN** a visitor opens an event's modal
 - **THEN** the page URL SHALL carry that event's month and an `#event-<id>`
-  fragment, and the modal SHALL present a control that copies that URL
+  fragment, and the modal SHALL present a control that copies a link to that event
+
+#### Scenario: The copy control yields a shareable link
+
+- **WHEN** a visitor uses the copy control on an event modal
+- **THEN** the copied value SHALL be that event's share page URL, and SHALL NOT be
+  the calendar URL carrying the `#event-<id>` fragment
 
 #### Scenario: A shared link opens an event in a month not currently displayed
 

@@ -31,5 +31,9 @@ Then replace the `handle /yt-feed` reverse_proxy block in
 
 and `caddy validate --config /etc/caddy/Caddyfile && systemctl reload caddy`.
 
-Note: the cache file lives at /srv/theneontemple.com/yt-feed.xml; site
-deploys rsync WITHOUT --delete, so it survives deploys.
+Note: the cache file lives at /srv/theneontemple.com/yt-feed.xml. Site
+deploys DO rsync with --delete (deploy.sh line 7) — the file survives
+only because of the matching `--exclude=yt-feed.xml`. Anything else
+generated into the web root needs its own exclude or the next deploy
+removes it; see deploy/share-pages/, which relies on the same
+protection.

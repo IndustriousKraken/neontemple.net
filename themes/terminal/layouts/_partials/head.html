@@ -1,5 +1,27 @@
+{{- /* Page metadata, including the Open Graph and Twitter card block every
+       shared link previews from. Included by baseof.html; deliberately NOT
+       partialCached — every value below varies per page, and a cached block
+       would give every page the first page's preview. */ -}}
+{{- $title := cond .IsHome site.Title (printf "%s | %s" .Title site.Title) }}
+{{- $description := or .Description site.Params.description }}
+{{- /* baseURL without its trailing slash. `relativeURLs = true` makes absURL
+       emit page-relative URLs, so absolute values are built from site.BaseURL
+       explicitly rather than assumed — a crawler reads og:url and og:image out
+       of context and resolves neither against the page it fetched. */}}
+{{- $base := strings.TrimSuffix "/" site.BaseURL }}
+{{- $url := or .Params.canonical .Permalink }}
+{{- $image := or .Params.image (printf "%s/img/share-card.png" $base) }}
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width">
-<title>{{ if .IsHome }}{{ site.Title }}{{ else }}{{ printf "%s | %s" .Title site.Title }}{{ end }}</title>
-{{ partialCached "head/css.html" . }}
-{{ partialCached "head/js.html" . }}
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ $title }}</title>
+<meta name="description" content="{{ $description }}">
+<meta property="og:title" content="{{ $title }}">
+<meta property="og:description" content="{{ $description }}">
+<meta property="og:url" content="{{ $url }}">
+<meta property="og:type" content="{{ or .Params.ogType "website" }}">
+<meta property="og:site_name" content="{{ site.Title }}">
+<meta property="og:image" content="{{ $image }}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ $title }}">
+<meta name="twitter:description" content="{{ $description }}">
+<meta name="twitter:image" content="{{ $image }}">

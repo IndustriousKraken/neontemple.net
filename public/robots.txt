@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+# The fill template, not a page. It is a real file in the web root because the
+# share-page refresher reads it from there.
+Disallow: /_share/
+
+Sitemap: https://theneontemple.com/sitemap.xml
+# Generated share pages (/e/<id>/, /a/<id>/). They are reachable only from here:
+# the calendar's links to events are rendered by script and absent from the
+# served HTML, so a crawler walking the site never arrives at one.
+Sitemap: https://theneontemple.com/share-sitemap.xml

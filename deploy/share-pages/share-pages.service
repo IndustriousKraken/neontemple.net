@@ -1,0 +1,16 @@
+[Unit]
+Description=Reconcile generated share pages for theneontemple.com
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/share-pages.js refresh
+# Both paths this writes. The manifest lives OUTSIDE the web root so it is never
+# served and never touched by a deploy's rsync.
+ReadWritePaths=/srv/theneontemple.com /var/lib/share-pages
+StateDirectory=share-pages
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
