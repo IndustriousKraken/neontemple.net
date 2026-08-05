@@ -217,6 +217,42 @@ test('a page older than the refresh window is kept, served, and not re-fetched',
   assert.ok(read(share.sitemapPath(cfg)).includes('ev-ancient'), 'it stays advertised');
 });
 
+test('a retracted announcement OLDER than the events window is still removed', async (t) => {
+  // The events window is not the announcements query's scope: that query takes
+  // no date range, so every announcement was asked about and absence is a
+  // retraction whatever the item's date. Scoping it by the events window
+  // instead would leave a withdrawn announcement served forever, which is the
+  // one place a retraction must not fail to take effect.
+  const { cfg } = makeEnv();
+  stubApi(t, cfg, { announcements: [ANNOUNCEMENT] });
+  seedPage(cfg, 'a', 'an-old', LONG_AGO);
+
+  const { removed } = await share.reconcile(cfg, NOW);
+
+  assert.deepEqual(removed, ['a/an-old']);
+  assert.ok(!exists(path.join(cfg.root, 'a', 'an-old')), 'the directory is gone');
+  assert.equal(share.loadManifest(cfg)['a/an-old'], undefined, 'and its manifest entry with it');
+  assert.ok(!read(share.sitemapPath(cfg)).includes('an-old'), 'and its sitemap entry');
+});
+
+test('a FULL announcements payload removes nothing — the tail may have been cut off', async (t) => {
+  // At the limit, an absent older announcement is as likely truncated as
+  // withdrawn, and deleting on that basis is the mistake the events window
+  // check exists to prevent.
+  const { cfg } = makeEnv();
+  const full = Array.from({ length: share.ANNOUNCEMENT_LIMIT }, (_unused, i) => ({
+    ...ANNOUNCEMENT, id: `an-${i}`,
+  }));
+  stubApi(t, cfg, { announcements: full });
+  const old = seedPage(cfg, 'a', 'an-old', LONG_AGO);
+
+  const { removed } = await share.reconcile(cfg, NOW);
+
+  assert.deepEqual(removed, [], 'nothing is treated as retracted');
+  assert.ok(exists(old), 'the page beyond the limit survives');
+  assert.equal(share.loadManifest(cfg)['a/an-old'], LONG_AGO, 'and keeps its manifest entry');
+});
+
 test('a failed fetch changes nothing — non-2xx, unparseable, and wrong-shape alike', async (t) => {
   for (const fail of ['status', 'unparseable', 'wrong-shape']) {
     const { cfg } = makeEnv();

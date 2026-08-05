@@ -106,11 +106,15 @@ the host layout differs.
 - **Both payloads or nothing.** A non-2xx, a timeout, an unparseable body, or a
   body that is not a JSON array exits non-zero having changed nothing — the same
   rule `yt-feed-refresh.sh` follows with its `<entry>` check.
-- **Removal is scoped to what was asked about.** Events are fetched over a
-  bounded window. An item dated outside that window is absent from the payload
+- **Removal is scoped to what was asked about** — which differs by kind. Events
+  are fetched over a bounded window, so an event dated outside it is absent
   because it was never requested, not because it was retracted; deleting on that
   basis would wipe every page older than the window on the first run. The
   manifest records each page's item date, which is what tells the two apart.
+  Announcements are fetched with no date range at all, so absence from that
+  payload IS a retraction however old the item is — the sole exception being a
+  payload that came back at the limit, where the tail may have been truncated
+  rather than withdrawn.
 - **Age governs polling, never removal.** A page whose item has aged out stops
   being re-fetched and keeps being served indefinitely. A shared link does not
   stop working because the event it names got old.

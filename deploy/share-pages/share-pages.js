@@ -68,6 +68,15 @@ const WINDOW_PAST_DAYS = 45;
 const WINDOW_FUTURE_DAYS = 400;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * The announcements endpoint takes no date range, only a count. That makes the
+ * announcements query UNBOUNDED IN TIME — every announcement is asked about,
+ * whatever its date — which is why reconcile scopes their removal differently
+ * from events. A full payload is the one case where it is not: at exactly the
+ * limit, an older announcement may have been cut off rather than withdrawn.
+ */
+const ANNOUNCEMENT_LIMIT = 200;
+
 function pollWindow(now = new Date()) {
   return {
     from: new Date(now.getTime() - WINDOW_PAST_DAYS * DAY_MS),
@@ -336,9 +345,10 @@ async function fetchPublicItems(cfg, now = new Date()) {
   const query = new URLSearchParams({ from: from.toISOString(), to: to.toISOString() });
   const [events, announcements] = await Promise.all([
     fetchJsonArray(`${cfg.api}/public/events?${query}`),
-    // No range parameters on this endpoint; the limit is generous and scope is
-    // decided by item date below, exactly as it is for events.
-    fetchJsonArray(`${cfg.api}/public/announcements?limit=200`),
+    // No range parameters on this endpoint, so this asks about every
+    // announcement there is — an item date outside the events window says
+    // nothing about whether this query covered it. See reconcile.
+    fetchJsonArray(`${cfg.api}/public/announcements?limit=${ANNOUNCEMENT_LIMIT}`),
   ]);
   return {
     from,
@@ -359,10 +369,13 @@ const itemDate = (kind, item) =>
 /**
  * Bring the generated pages into agreement with the public API.
  *
- * Removal is decided ONLY for items the query covered. An item dated outside
- * the window is absent because it was never asked about, and deleting on that
- * basis would wipe every page older than the window on the first run. Age
- * governs polling; retraction is the only cause for removal.
+ * Removal is decided ONLY for items the query covered — which is not the same
+ * question for the two kinds. Events are fetched over a bounded window, so an
+ * event dated outside it is absent because it was never asked about, and
+ * deleting on that basis would wipe every page older than the window on the
+ * first run. Announcements are fetched with no date range at all, so absence IS
+ * a retraction however old the item is. Age governs polling; retraction is the
+ * only cause for removal.
  */
 async function reconcile(cfg, now = new Date()) {
   const template = fs.readFileSync(templatePath(cfg), 'utf8');
@@ -383,14 +396,22 @@ async function reconcile(cfg, now = new Date()) {
     written.push(manifestKey(kind, id));
   }
 
+  // The one case where absence from the announcements payload is not evidence
+  // of retraction: a payload at the limit may have cut an older announcement
+  // off rather than the operator having withdrawn it. Removing then would be
+  // the same mistake the events window check exists to prevent.
+  const askedAboutEveryAnnouncement = announcements.length < ANNOUNCEMENT_LIMIT;
+
   const alive = new Set(written);
   const removed = [];
   for (const key of Object.keys(manifest)) {
     if (alive.has(key)) continue;
-    const dated = Date.parse(manifest[key]);
-    const inScope = Number.isFinite(dated) && dated >= from.getTime() && dated <= to.getTime();
-    if (!inScope) continue; // out of the queried window: not evidence of anything
     const [kind, id] = key.split('/');
+    const dated = Date.parse(manifest[key]);
+    const inScope = kind === 'a'
+      ? askedAboutEveryAnnouncement
+      : Number.isFinite(dated) && dated >= from.getTime() && dated <= to.getTime();
+    if (!inScope) continue; // never asked about it: not evidence of anything
     if (removePage(cfg, kind, id)) removed.push(key);
     delete manifest[key];
   }
@@ -544,4 +565,5 @@ module.exports = {
   main,
   WINDOW_PAST_DAYS,
   WINDOW_FUTURE_DAYS,
+  ANNOUNCEMENT_LIMIT,
 };
