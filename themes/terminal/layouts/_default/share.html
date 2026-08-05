@@ -1,0 +1,57 @@
+{{- /*
+  The share-page TEMPLATE. Hugo renders this once, to /_share/template/, and
+  deploy/share-pages/share-pages.js fills it per item — so the site's chrome and
+  CSS have one home and a theme change reaches every share page with no script
+  edit.
+
+  Two things about this file are load-bearing:
+
+  1. `%%TOKEN%%` placeholders are substituted by the filler; every one of them is
+     escaped for its context there. `<share-*>` elements are conditional regions:
+     the filler keeps the region's inner markup or drops the whole region. HTML
+     comments would be the obvious way to mark regions, but `hugo --minify`
+     strips comments and leaves unknown elements alone.
+
+  2. The output path has the SAME depth as a share page (`/_share/template/` vs
+     `/e/<id>/`). `relativeURLs = true` rewrites the chrome's hrefs relative to
+     the rendered page's own location, so equal depth is what makes `../../css/…`
+     and `../../calendar/` resolve correctly once the filled copy is written to
+     /e/<id>/index.html. Moving this page to another depth silently breaks every
+     generated page's stylesheet and navigation.
+*/ -}}
+{{ define "main" }}
+<article class="share-page">
+
+  <share-image>
+    <div class="share-hero"><img src="%%IMAGE_URL%%" alt=""></div>
+  </share-image>
+
+  <h1 class="page-title">%%TITLE%%</h1>
+
+  <div class="share-meta">
+    <share-event>
+      <p><span class="meta-label">Date:</span> %%EVENT_DATE%%</p>
+      <p><span class="meta-label">Time:</span> %%EVENT_TIME%%</p>
+    </share-event>
+    <share-location>
+      <p><span class="meta-label">Location:</span> %%EVENT_LOCATION%%</p>
+    </share-location>
+    <share-announcement>
+      <p><span class="meta-label">Published:</span> %%PUBLISHED%%</p>
+    </share-announcement>
+  </div>
+
+  <div class="share-body">
+    <share-event><p class="share-text">%%EVENT_DESCRIPTION%%</p></share-event>
+    <share-announcement>%%ANNOUNCEMENT_HTML%%</share-announcement>
+  </div>
+
+  {{- /* A link onward, never a redirect: this page is the destination the
+         shared link promised, so it must not bounce anyone to the index. */}}
+  <p class="share-back">
+    <share-event><a href="/calendar/">&larr; All events</a></share-event>
+    <share-announcement><a href="/announcements/">&larr; All announcements</a></share-announcement>
+  </p>
+
+</article>
+{{ end }}

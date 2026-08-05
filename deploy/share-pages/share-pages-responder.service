@@ -1,0 +1,21 @@
+[Unit]
+Description=On-request share page generator for theneontemple.com (loopback only)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/share-pages.js serve
+Restart=on-failure
+# Bound to 127.0.0.1 by the script itself; Caddy is the only thing that reaches
+# it, and only for the two share path prefixes.
+Environment=SHARE_PORT=8787
+ReadWritePaths=/srv/theneontemple.com /var/lib/share-pages
+StateDirectory=share-pages
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
