@@ -17,25 +17,51 @@ Commands:
 
 - `hugo server` — serve the site locally with live reload for development.
 - `hugo` — build the static site into `public/`.
-- `npm test` — run the theme's JS unit tests and the share-page refresher's
-  (`node --test "themes/terminal/assets/js/*.test.js"
-  "deploy/share-pages/*.test.js"`).
-- `./deploy.sh` — build and rsync `public/` to the coterie server's Caddy web
-  root (`/srv/theneontemple.com`). It runs `rsync --delete`, so every
-  server-generated path is excluded by name there; adding one without its
-  exclude means the next deploy destroys it.
+- `npm test` — run the theme's JS unit tests, the component installer's, and the
+  share-page refresher's (`node --test "themes/terminal/assets/js/*.test.js"
+  "deploy/*.test.js" "deploy/share-pages/*.test.js"`).
+- `./deploy.sh` — build, publish, and bring the host into line with this
+  repository. See below.
+- `./deploy.sh --check` — report what is missing or stale on the host, changing
+  nothing.
+
+## Deploying
+
+**`./deploy.sh` is the whole procedure, including for a fresh host.** It builds
+the site, rsyncs `public/` to the coterie server's Caddy web root
+(`/srv/theneontemple.com`), and then installs and reconciles every server-side
+component under `deploy/`. Running it against a host that already matches
+changes nothing and reports that; running it against a host missing a component
+installs the component. You do not have to know which of those you are in.
+
+It runs `rsync --delete`, so every server-generated path is excluded by name in
+`deploy.sh`; adding one without its exclude means the next deploy destroys it.
+
+The one manual step in the whole system is a one-time Caddy import line per
+host, documented in [`deploy/caddy/`](./deploy/caddy/README.md). The deploy
+detects its absence and says so rather than reporting success.
+
+**`./deploy.sh --check` answers "is the host current".** It reports each
+component as current, stale, or missing, names any unmet prerequisite, and
+changes nothing — no file placed, no unit enabled, no server reloaded. Run it
+when you want to know whether what you merged is actually running.
 
 ## Server-side pieces
 
-Two things are generated on the web host rather than by the build, each with its
-own systemd timer and README:
+Each directory under `deploy/` is a component. It declares what installing it
+means in `component.conf`, and `deploy/install.sh` acts on that declaration —
+so **adding a component is adding a directory**, with no installer change, and a
+component cannot exist in the repository without the deploy installing it. A
+directory without a readable `component.conf` fails the deploy and is named.
 
+- [`deploy/caddy/`](./deploy/caddy/) — this site's Caddy configuration, and the
+  one-time host bootstrap that makes Caddy read it.
 - [`deploy/yt-feed-cache/`](./deploy/yt-feed-cache/) — the cached YouTube feed
   the homepage slider reads.
 - [`deploy/share-pages/`](./deploy/share-pages/) — `/e/<id>/` and `/a/<id>/`
   share pages, one per public event and announcement, so a link to a specific
-  item previews as that item. Includes the Caddy block, the on-request
-  generator, and the immediate-purge command for a mistakenly published item.
+  item previews as that item. Includes the on-request generator and the
+  immediate-purge command for a mistakenly published item.
 
 ## Configuration
 

@@ -23,44 +23,35 @@ byte-identical output.
 Both fill the same Hugo-built template at `/_share/template/index.html`. A theme
 change reaches share pages with no script edit, and the two paths cannot drift.
 
-## Install (as root on the web host)
+## Installation
 
-Requires **Node.js ≥ 18** (`apt install nodejs`) for the global `fetch` the
-script uses.
+`./deploy.sh` installs this. There are no steps to follow by hand — this
+component being merged, deployed, and yet absent from the host, so that
+`/e/<id>/` returned a 404 for every event, is the reason the deploy installs
+components at all.
 
-    install -m 0755 share-pages.js /usr/local/bin/share-pages.js
-    install -m 0644 share-pages.service share-pages.timer \
-                    share-pages-responder.service /etc/systemd/system/
-    systemctl daemon-reload
-    systemctl enable --now share-pages-responder.service
-    systemctl enable --now share-pages.timer
-    systemctl start share-pages.service     # generate the pages now
+`component.conf` is the single description of what installing it means, and the
+deploy acts on that file: `share-pages.js` to `/usr/local/bin`, the three units
+to `/etc/systemd/system`, `daemon-reload` when a unit file changed, `enable
+--now` on the responder and the timer, a restart of the responder when the
+script changed, and a `start` of the oneshot so a deployed template change
+reaches the pages without waiting on the timer.
 
-Then add this to the `theneontemple.com` site block in `/etc/caddy/Caddyfile`:
+**Node.js ≥ 18** (`apt install nodejs`) is required for the global `fetch` the
+script uses. The deploy checks for it and will not install it: a host without
+Node is named, told what is missing and what to run, and the deploy exits
+non-zero with nothing half-installed. Install Node and re-run.
 
-    # Generated share pages (see the site repo's deploy/share-pages/). Serve the
-    # written file when there is one; fall through to the loopback responder
-    # when there is not, so a link posted seconds after publication previews
-    # correctly instead of caching a not-found at the platform for days.
-    @share path /e/* /a/*
-    handle @share {
-      root * /srv/theneontemple.com
-      # no-cache means REVALIDATE, not don't-store: these documents are a few KB,
-      # so a conditional request per view is free, and it is what makes a removal
-      # take effect downstream instead of lingering in an intermediary after the
-      # origin dropped the page. The ETag comes from file_server on a static hit
-      # and from the responder on a generated one.
-      header Cache-Control "no-cache"
-      @nopage not file {path}index.html {path}/index.html
-      reverse_proxy @nopage 127.0.0.1:8787
-      file_server
-    }
+The `@share` handler that serves these pages, including the loopback
+fall-through to the responder, is part of this site's repository-owned Caddy
+configuration — see [`deploy/caddy/`](../caddy/README.md).
 
-and `caddy validate --config /etc/caddy/Caddyfile && systemctl reload caddy`.
+`./deploy.sh --check` reports whether this component is installed, stale, or
+missing on the host without changing anything.
 
 ## Deploys will delete these pages unless excluded
 
-`deploy.sh` line 7 runs `rsync -av --delete`. Anything in the web root that is
+`deploy.sh` runs `rsync -av --delete`. Anything in the web root that is
 not in `public/` is deleted on the next deploy **unless it is excluded** — that
 is the only reason `yt-feed.xml` survives, and it is why `deploy.sh` now carries:
 
