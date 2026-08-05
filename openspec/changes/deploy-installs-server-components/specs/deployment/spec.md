@@ -170,3 +170,21 @@ reported the gap directly.
 - **WHEN** check mode runs against a host with stale or missing components
 - **THEN** no file SHALL be placed, no unit SHALL be enabled, and no server
   SHALL be reloaded
+
+### Requirement: Generated content survives a deploy
+
+Generated share pages and other deploy-generated content SHALL survive a
+deploy. The deploy SHALL NOT delete files it did not place, and SHALL
+explicitly exclude generated share pages from any sync-with-deletion
+operation. This exclusion SHALL be stated here and documented in the deploy
+command's configuration.
+
+#### Scenario: Generated share pages remain after deployment
+
+- **WHEN** the site is deployed with sync-with-deletion
+- **THEN** generated share pages SHALL still be present
+
+#### Scenario: Other deploy-generated content is also preserved
+
+- **WHEN** the site is deployed with sync-with-deletion
+- **THEN** any file the deploy did not place SHALL remain on the host
