@@ -257,6 +257,34 @@ test('a declaration verb the installer does not implement fails the component', 
   assert.match(run.stderr, /\[failed\] yt-feed-cache: unknown declaration verb\(s\): symlink/);
 });
 
+test('a trailing token on a declaration line fails the component and is named', (t) => {
+  const host = makeHost(t);
+  const conf = path.join(host.src, 'yt-feed-cache/component.conf');
+  const declaration = 'file yt-feed-refresh.sh /usr/local/bin/yt-feed-refresh.sh 0755';
+  fs.writeFileSync(conf, fs.readFileSync(conf, 'utf8')
+    .replace(declaration, `${declaration} # prime the cache`));
+
+  const run = install(host);
+  assert.notEqual(run.status, 0);
+  // The failure names the declaration that is wrong. Absorbed into the mode it
+  // would instead surface as `install -m "0755 # prime the cache"`, an error
+  // about the wrong thing entirely.
+  assert.match(run.stderr, /\[failed\] yt-feed-cache: malformed declaration: `file yt-feed-refresh\.sh`/);
+  assert.doesNotMatch(run.stderr, /install -m/);
+  assert.ok(!exists(host, 'usr/local/bin/yt-feed-refresh.sh'), 'and nothing was placed');
+});
+
+test('a unit line with a trailing token is named too', (t) => {
+  const host = makeHost(t);
+  const conf = path.join(host.src, 'yt-feed-cache/component.conf');
+  fs.writeFileSync(conf, fs.readFileSync(conf, 'utf8')
+    .replace('unit yt-feed-cache.timer', 'unit yt-feed-cache.timer # every 30 minutes'));
+
+  const run = install(host);
+  assert.notEqual(run.status, 0);
+  assert.match(run.stderr, /malformed declaration: `unit yt-feed-cache\.timer` expects exactly one argument/);
+});
+
 // ------------------------------------------------------------ prerequisites --
 
 test('an unmet prerequisite names the component, the missing thing, and the fix', (t) => {

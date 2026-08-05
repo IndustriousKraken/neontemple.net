@@ -26,11 +26,21 @@
 #                               failure rolls them back and fails the deploy.
 #                               `{root}` expands to the --root prefix.
 #
+# `#` starts a comment only at the START of a line. `require`, `bootstrap`, and
+# `validate` deliberately take the rest of their line as their last argument — a
+# command to run, or the text to look for — so nothing may follow it. Every
+# other verb takes EXACTLY the fields listed above, and a line carrying any
+# others fails the component by name. Silently folding a trailing token into the
+# preceding field is how `file x /y 0755 # note` becomes an opaque
+# `install -m "0755 # note"` failure about something else entirely.
+#
 # Errors are handled explicitly rather than by `set -e`: `reconcile` is called
 # from an `||` list, which POSIX says disables -e for everything inside it.
 set -eu
 
 VERBS='require bootstrap file unit enable start restart reload validate'
+# The verbs whose last field deliberately consumes the rest of the line.
+VARIADIC='require bootstrap validate'
 TAB=$(printf '\t')
 
 SOURCE=$(cd "$(dirname "$0")" && pwd)
@@ -85,7 +95,30 @@ unknown_verbs() {
   done < "$1"
 }
 
+# Names any line carrying the wrong number of fields. A typo'd VERB is already a
+# named failure (above); a typo'd FIELD has to be one too, or it is absorbed by
+# whichever variable `read` filled last and surfaces as an error about something
+# else — `install -m "0755 # note"` rather than the declaration that wrote it.
+bad_arity() { # <declaration>
+  while read -r _v _f1 _f2 _f3 _rest; do
+    case "$_v" in ''|'#'*) continue ;; esac
+    case " $VARIADIC " in *" $_v "*) continue ;; esac
+    case "$_v" in
+      file)
+        if [ -z "$_f3" ] || [ -n "$_rest" ]; then
+          printf "\`file %s\` expects <source> <destination> <mode>.\n" "$_f1"
+        fi ;;
+      *)
+        if [ -z "$_f1" ] || [ -n "$_f2$_f3$_rest" ]; then
+          printf "\`%s %s\` expects exactly one argument.\n" "$_v" "$_f1"
+        fi ;;
+    esac
+  done < "$1"
+}
+
 # Every file a component places, as `source<TAB>destination<TAB>mode<TAB>unit?`.
+# The plain three- and one-field reads below are safe because `bad_arity` has
+# already rejected any line with a field they would silently absorb.
 component_files() { # <declaration> <component directory>
   directives file "$1" > "$work/f.file"
   while read -r _src _dest _mode; do
@@ -114,10 +147,19 @@ prereq_state() { # <command> <min-major|any>
 
 # --------------------------------------------------------------- comparison --
 
+# Permission bits, in octal and without a leading zero. `stat` is not portable:
+# `-c` is GNU and `-f` is BSD. The deploy only ever runs on the Linux host, but
+# the tests run this script wherever someone runs `npm test` — so try GNU first
+# and fall back, rather than making the suite fail on a developer's Mac for a
+# reason that has nothing to do with what they changed.
+file_mode() { # <file>
+  stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1" 2>/dev/null
+}
+
 file_state() { # <source> <destination> <mode>
   if [ ! -f "$2" ]; then printf 'missing\n'; return 0; fi
   if ! cmp -s "$1" "$2"; then printf 'stale\n'; return 0; fi
-  if [ "$(stat -c %a "$2")" != "${3#0}" ]; then printf 'stale\n'; return 0; fi
+  if [ "$(file_mode "$2")" != "${3#0}" ]; then printf 'stale\n'; return 0; fi
   printf 'current\n'
 }
 
@@ -169,6 +211,12 @@ reconcile() { # <name> <directory> <declaration>
   bad=$(unknown_verbs "$conf" | sort -u | tr '\n' ' ')
   if [ -n "$bad" ]; then
     problem "[failed] $name: unknown declaration verb(s): ${bad% }"
+    return 1
+  fi
+
+  bad=$(bad_arity "$conf" | tr '\n' ' ')
+  if [ -n "$bad" ]; then
+    problem "[failed] $name: malformed declaration: ${bad% } Only require, bootstrap, and validate take the rest of the line; an inline # is not a comment."
     return 1
   fi
 
