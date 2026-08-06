@@ -3,6 +3,6 @@
   "private": true,
   "description": "Tooling for the neontemple.net Hugo theme assets (JS tests).",
   "scripts": {
-    "test": "node --test \"themes/terminal/assets/js/*.test.js\" \"deploy/share-pages/*.test.js\""
+    "test": "node --test \"themes/terminal/assets/js/*.test.js\" \"deploy/*.test.js\" \"deploy/share-pages/*.test.js\""
   }
 }

@@ -1,0 +1,60 @@
+# theneontemple.com — this site's Caddy configuration, owned by the repository.
+#
+# Placed at /etc/caddy/sites/theneontemple.com.caddy by deploy.sh and read via
+# the one-time `import sites/*.caddy` line in the main Caddyfile (see README.md).
+# Edit it HERE and deploy; an edit made on the host is overwritten by the next
+# deploy, which is the point — the four Caddyfile.bak-* files on that host are
+# what hand-editing produced.
+
+theneontemple.com {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+	}
+
+	# Cached YouTube feed (refreshed by yt-feed-cache.timer; see the site repo's
+	# deploy/yt-feed-cache/). Same-origin URL kept so the site JS is unchanged.
+	handle /yt-feed {
+		root * /srv/theneontemple.com
+		rewrite * /yt-feed.xml
+		header Cache-Control "public, max-age=300"
+		header Content-Type "application/atom+xml; charset=utf-8"
+		file_server
+	}
+
+	# Generated share pages (see the site repo's deploy/share-pages/). Serve the
+	# written file when there is one; fall through to the loopback responder
+	# when there is not, so a link posted seconds after publication previews
+	# correctly instead of caching a not-found at the platform for days.
+	@share path /e/* /a/*
+	handle @share {
+		root * /srv/theneontemple.com
+		# no-cache means REVALIDATE, not don't-store: these documents are a few KB,
+		# so a conditional request per view is free, and it is what makes a removal
+		# take effect downstream instead of lingering in an intermediary after the
+		# origin dropped the page. The ETag comes from file_server on a static hit
+		# and from the responder on a generated one.
+		header Cache-Control "no-cache"
+		@nopage not file {path}index.html {path}/index.html
+		reverse_proxy @nopage 127.0.0.1:8787
+		file_server
+	}
+
+	# The Hugo build.
+	handle {
+		root * /srv/theneontemple.com
+		file_server
+	}
+
+	# Serve Hugo's themed 404 page instead of the bare default error body. This
+	# document is returned for a miss at ANY depth, so its assets must be
+	# absolute — see issues/archive/2026-08-05-relative-asset-urls-break-404-*.
+	handle_errors {
+		root * /srv/theneontemple.com
+		rewrite * /404.html
+		file_server
+	}
+
+	log {
+		output file /var/log/caddy/theneontemple.com.log
+	}
+}
