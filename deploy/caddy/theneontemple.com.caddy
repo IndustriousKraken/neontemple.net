@@ -16,6 +16,77 @@ theneontemple.com, www.theneontemple.com {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 	}
 
+	# ---------------------------------------------------------------------------
+	# Legacy WordPress URLs.
+	#
+	# The guild's old site ran on WordPress at neontemple.net. That hostname's
+	# block still redirects here PATH-INTACT (`redir https://theneontemple.com{uri}
+	# permanent`, in /etc/caddy/Caddyfile) — which is correct, and is the only
+	# reason a per-path map is possible at all. Leave it alone. The cost is that
+	# every indexed WordPress URL lands here carrying a path this site never had.
+	#
+	# The map below is EVIDENCE, not recollection: it is the 404s in
+	# /var/log/caddy/site-access.log with scanner probes discarded. README.md
+	# beside this file has the query and how to re-derive it. Add a path when the
+	# log shows someone asking for it; do not add plausible-looking ones that
+	# nobody requests.
+	#
+	# Destinations are chosen by what the old page was FOR, not by name. Nothing
+	# here creates a stub page to be a redirect target — where there is no exact
+	# equivalent the nearest honest page is used.
+	#
+	# `redir` sorts ahead of `handle` in Caddy's directive order, so these are
+	# evaluated before the share-page and file_server handlers regardless of where
+	# they sit in this file. Every matcher is an EXACT path (no `*`), so none of
+	# them shadows a real route — in particular /events/ does not touch /calendar/
+	# or the generated /e/ and /a/ share pages.
+	#
+	# 301 (`permanent`), so search engines transfer the indexed URL to its
+	# replacement instead of continuing to offer a link that fails.
+	#
+	# NO CATCH-ALL, deliberately. The overwhelming majority of 404s here are
+	# hostile scanning — wp_filemanager.php, /.env in a dozen spellings,
+	# /.git/config, /.aws/credentials. A fallback to the home page would answer
+	# every one of those with a 301 to a 200: it manufactures soft-404s across a
+	# URL space search engines will index, it confirms to a scanner that every
+	# path it tries resolves, and it destroys the log signal this map was built
+	# from, leaving the next person nothing to tell a real broken link from a
+	# probe. An unmatched path returning 404 is the correct answer.
+	redir /events/ /calendar/ permanent
+	redir /register/remote-membership/ /join/ permanent
+	redir /join-the-guild-intermediary-page/ /join/ permanent
+	redir /guild/ /about/ permanent
+	redir /blog/ /announcements/ permanent
+
+	# The calendar feed, and the one entry here that is not a page. 191 hits is
+	# not 191 people — it is a few subscribed clients polling on a schedule, and
+	# a client that gets a 404 for its feed shows the subscriber nothing at all:
+	# no error, no empty calendar, dead since the migration with nothing to
+	# notice. Sending it to the iCal endpoint Coterie serves today revives those
+	# subscriptions with the subscriber doing nothing.
+	#
+	# Query strings are NOT preserved (no `{uri}`), considered and intended:
+	# Coterie's feed endpoints take no parameters, so any tribe-bar-date= or
+	# eventDisplay= a WordPress client still tacks on would be ignored at the
+	# destination — forwarding it only makes the redirect target harder to read.
+	#
+	# Both URLs are the ones the site itself ships: see the "Subscribe (iCal)"
+	# button in themes/terminal/layouts/_default/calendar.html and "Subscribe
+	# (RSS)" in announcements.html. Hardcoded rather than read from hugo.toml's
+	# coterieAPI because Caddy does not see Hugo's params — redirects.test.js
+	# pins the two together so a moved origin cannot silently leave these
+	# pointing at nothing.
+	redir /events/ics/ https://coterie.theneontemple.com/public/feed/calendar permanent
+	redir /feed/ https://coterie.theneontemple.com/public/feed/rss permanent
+	redir /feed/atom/ https://coterie.theneontemple.com/public/feed/rss permanent
+	redir /rss/ https://coterie.theneontemple.com/public/feed/rss permanent
+
+	# Not a legacy URL: people type the hostname they associate with the guild and
+	# expect to sign in there. The intent is unambiguous, and being technically
+	# correct about which hostname hosts the portal just gives them a 404.
+	redir /login https://coterie.theneontemple.com/login permanent
+	# ---------------------------------------------------------------------------
+
 	# Cached YouTube feed (refreshed by yt-feed-cache.timer; see the site repo's
 	# deploy/yt-feed-cache/). Same-origin URL kept so the site JS is unchanged.
 	handle /yt-feed {
