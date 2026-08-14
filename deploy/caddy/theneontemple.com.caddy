@@ -6,9 +6,14 @@
 # deploy, which is the point — the four Caddyfile.bak-* files on that host are
 # what hand-editing produced.
 
-theneontemple.com {
+# BOTH hostnames. www.theneontemple.com serves today and returns 200; a block
+# naming only the apex silently stops answering it.
+theneontemple.com, www.theneontemple.com {
 	header {
-		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		# Matches coterie's HSTS. Deliberately WITHOUT `preload`: preloading is a
+		# near-irreversible commitment binding every subdomain to HTTPS, and is not
+		# something to acquire as a side effect of moving this file into the repo.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 	}
 
 	# Cached YouTube feed (refreshed by yt-feed-cache.timer; see the site repo's
@@ -42,6 +47,7 @@ theneontemple.com {
 	# The Hugo build.
 	handle {
 		root * /srv/theneontemple.com
+		encode zstd gzip
 		file_server
 	}
 
@@ -55,6 +61,10 @@ theneontemple.com {
 	}
 
 	log {
-		output file /var/log/caddy/theneontemple.com.log
+		output file /var/log/caddy/site-access.log
+		# JSON, as the live config emits. Operational tooling parses this — the
+		# lockout investigation on 2026-08-13 read it with a JSON parser — and the
+		# default console format would break that silently.
+		format json
 	}
 }
