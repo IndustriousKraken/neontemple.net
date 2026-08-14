@@ -23,10 +23,10 @@
  * `real config points at the origin the site itself uses` pins the real value.
  *
  * The neontemple.net block is NOT in this repository: it lives in the host's
- * shared /etc/caddy/Caddyfile and is deliberately untouched. It is modelled here
- * (LEGACY_BLOCK) because how these requests actually arrive is via that
- * path-preserving hop, and a map that only works when you start on the new
- * hostname would fix nothing.
+ * shared /etc/caddy/Caddyfile and is deliberately untouched. It is modelled
+ * inline in the `config` array below because how these requests actually arrive
+ * is via that path-preserving hop, and a map that only works when you start on
+ * the new hostname would fix nothing.
  */
 
 const test = require('node:test');
